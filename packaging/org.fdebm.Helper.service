@@ -1,12 +1,12 @@
 [Unit]
-Description=DebManager privileged helper
+Description=Fdebm privileged helper
 After=dbus.service polkit.service
 Requires=dbus.service
 
 [Service]
 Type=dbus
-BusName=com.debmanager.Helper
-ExecStart=/usr/lib/apt-gui/apt-helperd
+BusName=org.fdebm.Helper
+ExecStart=/usr/lib/fdebm/fdebm-helperd
 User=root
 NoNewPrivileges=yes
 PrivateTmp=yes

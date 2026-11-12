@@ -203,14 +203,14 @@ int main(int argc, char *argv[])
     QTemporaryDir fakeBin;
     check(fakeBin.isValid(), QStringLiteral("无法创建伪造 PATH 目录"));
     const QString fakeProgram =
-            QDir(fakeBin.path()).filePath(QStringLiteral("apt-gui-test-probe"));
+            QDir(fakeBin.path()).filePath(QStringLiteral("fdebm-test-probe"));
     check(writeFile(fakeProgram), QStringLiteral("无法创建伪造程序"));
     check(QFile::setPermissions(fakeProgram, QFileDevice::ReadOwner | QFileDevice::WriteOwner
                                              | QFileDevice::ExeOwner),
           QStringLiteral("无法设置伪造程序权限"));
     const QByteArray originalPath = qgetenv("PATH");
     qputenv("PATH", fakeBin.path().toLocal8Bit() + ':' + originalPath);
-    check(ProgramPaths::findSystemExecutable(QStringLiteral("apt-gui-test-probe")).isEmpty(),
+    check(ProgramPaths::findSystemExecutable(QStringLiteral("fdebm-test-probe")).isEmpty(),
           QStringLiteral("PATH 中的同名程序不应被采用"));
     qputenv("PATH", originalPath);
 

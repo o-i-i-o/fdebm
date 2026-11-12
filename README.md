@@ -1,14 +1,14 @@
-# uos-apt-gui
+# fdebm
 
-基于 Qt5 的 DEB 包管理器：图形界面以普通用户身份运行，安装、卸载、更新等特权操作通过系统总线交给特权助手 `apt-helperd`，由 polkit 完成授权。程序不再调用 `pkexec`，也不需要开启开发者模式。
+基于 Qt5 的 DEB 包管理器：图形界面以普通用户身份运行，安装、卸载、更新等特权操作通过系统总线交给特权助手 `fdebm-helperd`，由 polkit 完成授权。程序不再调用 `pkexec`，也不需要开启开发者模式。
 
 ## 架构
 
 ```
-apt-gui（普通用户进程）
-   │  系统总线 com.debmanager.Helper1
+fdebm（普通用户进程）
+   │  系统总线 org.fdebm.Helper1
    ▼
-apt-helperd（root 运行的特权助手，polkit 授权）
+fdebm-helperd（root 运行的特权助手，polkit 授权）
    │  固定环境变量与工作目录
    ▼
 apt install / remove / purge / update / upgrade / autoremove
@@ -26,7 +26,7 @@ apt install / remove / purge / update / upgrade / autoremove
 
 ## D-Bus 接口
 
-服务名 `com.debmanager.Helper`，对象路径 `/com/debmanager/Helper`，接口 `com.debmanager.Helper1`，完整定义见 [`dbus/com.debmanager.Helper1.xml`](dbus/com.debmanager.Helper1.xml)。
+服务名 `org.fdebm.Helper`，对象路径 `/org/fdebm/Helper`，接口 `org.fdebm.Helper1`，完整定义见 [`dbus/org.fdebm.Helper1.xml`](dbus/org.fdebm.Helper1.xml)。
 
 | 方法 | 参数 | 返回 | 说明 |
 | --- | --- | --- | --- |
@@ -46,7 +46,7 @@ apt install / remove / purge / update / upgrade / autoremove
 ## 安全模型
 
 - **最小授权**：GUI 与助手都不以 root 运行，特权仅存在于短小的助手进程；命令行参数按白名单组装，不经过 shell。
-- **polkit 策略**（[`packaging/com.debmanager.helper.policy`](packaging/com.debmanager.helper.policy)）：
+- **polkit 策略**（[`packaging/org.fdebm.helper.policy`](packaging/org.fdebm.helper.policy)）：
 
   | 操作 | 活动会话 | 非活动/远程 |
   | --- | --- | --- |
@@ -54,7 +54,7 @@ apt install / remove / purge / update / upgrade / autoremove
   | 更新缓存 | `yes` | `auth_admin` |
 
   任意用户的默认结果均为 `no`，授权失败时不创建事务、不产生暂存文件（fail-closed）。
-- **本地 deb 防 TOCTOU**：授权前以 `O_NOFOLLOW` 打开并校验（必须是普通文件、非空、组/其他用户不可写、单包不超过 4 GiB、总量不超过 8 GiB），授权后按文件描述符重新校验标识、大小与权限，再复制到属主为 root、权限 0700 的暂存目录（默认 `/var/lib/apt-gui/staging`），apt 只接触暂存副本；事务结束清理暂存文件。
+- **本地 deb 防 TOCTOU**：授权前以 `O_NOFOLLOW` 打开并校验（必须是普通文件、非空、组/其他用户不可写、单包不超过 4 GiB、总量不超过 8 GiB），授权后按文件描述符重新校验标识、大小与权限，再复制到属主为 root、权限 0700 的暂存目录（默认 `/var/lib/fdebm/staging`），apt 只接触暂存副本；事务结束清理暂存文件。
 - **不泄露文件元数据**：授权前的本地包校验失败时，对外只返回统一的 `本地安装包校验失败`，具体原因（不存在、类型、权限、大小等）仅写入助手日志，避免本地用户借差异错误探测 root 可见的文件；授权后的暂存校验失败仍返回具体原因。
 - **调用者绑定**：`Cancel` 只接受事务发起者，其他调用者收到 `NotAuthorized`；`Finished` / `Output` 定向发送，避免输出泄露给无关进程。
 - **固定执行环境**：`PATH`、`HOME`、`LANG=C`、`DEBIAN_FRONTEND=noninteractive` 等显式设定，工作目录 `/`，标准输入为空，避免环境变量注入与交互式挂起。`apt` 不通过调用方的 `PATH` 查找，而只在 `/usr/bin`、`/bin`、`/usr/sbin`、`/sbin` 中解析为绝对路径；GUI 的只读命令（`dpkg -l`、`apt search`）同样使用绝对路径并固定 C locale。
@@ -63,7 +63,7 @@ apt install / remove / purge / update / upgrade / autoremove
 
 ### 代理
 
-助手不会继承登录会话的代理环境变量。需要代理时，创建 `/etc/apt-gui/proxy.conf`（属主 root，组/其他用户不可写）：
+助手不会继承登录会话的代理环境变量。需要代理时，创建 `/etc/fdebm/proxy.conf`（属主 root，组/其他用户不可写）：
 
 ```ini
 http_proxy=http://127.0.0.1:3128
@@ -92,7 +92,7 @@ cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo
 cmake --build build -j"$(nproc)"
 ```
 
-产物为 `build/apt-gui` 与 `build/apt-helperd`，构建目录可任意指定（建议放在源码树之外）。版本号唯一来源是 [`CMakeLists.txt`](CMakeLists.txt) 中的 `project(... VERSION ...)`，两个程序通过编译定义获得该版本。
+产物为 `build/fdebm` 与 `build/fdebm-helperd`，构建目录可任意指定（建议放在源码树之外）。版本号唯一来源是 [`CMakeLists.txt`](CMakeLists.txt) 中的 `project(... VERSION ...)`，两个程序通过编译定义获得该版本。
 
 ### 交叉编译
 
@@ -135,7 +135,7 @@ CI 在 Ubuntu 22.04 / 24.04 上执行原生构建、单元测试、元数据测�
 ```bash
 bash packaging/package_deb.sh              # 默认构建目录 build-deb
 bash packaging/package_deb.sh /tmp/build   # 也可显式指定
-sudo apt install ./build-deb/apt-gui_<版本>_<架构>.deb
+sudo apt install ./build-deb/fdebm_<版本>_<架构>.deb
 ```
 
 交叉打包只需指定工具链文件，包架构由产物 ELF 头自动判定（`DEB_ARCH` 可显式覆盖，与产物不一致会报错；交叉构建下若无法识别产物架构会直接失败，不会静默回退成宿主架构）：
@@ -143,22 +143,22 @@ sudo apt install ./build-deb/apt-gui_<版本>_<架构>.deb
 ```bash
 CMAKE_TOOLCHAIN_FILE=cmake/toolchains/linux-arm64.cmake \
   bash packaging/package_deb.sh build-arm64
-# 得到 build-arm64/apt-gui_<版本>_arm64.deb，可拷到 arm64 机器上安装
+# 得到 build-arm64/fdebm_<版本>_arm64.deb，可拷到 arm64 机器上安装
 ```
 
 脚本可在任意工作目录执行：配置、编译、按 CMake 安装规则填充包目录并调用 `dpkg-deb`，版本取自 CMake。安装内容：
 
 | 路径 | 内容 |
 | --- | --- |
-| `/usr/bin/apt-gui` | 图形界面 |
-| `/usr/lib/apt-gui/apt-helperd` | 特权助手 |
-| `/usr/share/dbus-1/system-services/com.debmanager.Helper.service` | D-Bus 激活 |
-| `/usr/lib/systemd/system/com.debmanager.Helper.service` | systemd 单元（`Type=dbus`） |
-| `/usr/share/dbus-1/system.d/com.debmanager.Helper.conf` | 系统总线策略 |
-| `/usr/share/polkit-1/actions/com.debmanager.helper.policy` | polkit 授权策略 |
-| `/usr/share/applications/apt-gui.desktop`、`/usr/share/icons/hicolor/scalable/apps/apt-gui.svg` | 桌面入口与图标 |
+| `/usr/bin/fdebm` | 图形界面 |
+| `/usr/lib/fdebm/fdebm-helperd` | 特权助手 |
+| `/usr/share/dbus-1/system-services/org.fdebm.Helper.service` | D-Bus 激活 |
+| `/usr/lib/systemd/system/org.fdebm.Helper.service` | systemd 单元（`Type=dbus`） |
+| `/usr/share/dbus-1/system.d/org.fdebm.Helper.conf` | 系统总线策略 |
+| `/usr/share/polkit-1/actions/org.fdebm.helper.policy` | polkit 授权策略 |
+| `/usr/share/applications/fdebm.desktop`、`/usr/share/icons/hicolor/scalable/apps/fdebm.svg` | 桌面入口与图标 |
 
-卸载用 `sudo apt remove apt-gui`。开发时也可直接运行 `build/apt-gui`，但特权操作需要系统总线上已安装并激活的助手，因此推荐用 deb 包部署。
+卸载用 `sudo apt remove fdebm`。开发时也可直接运行 `build/fdebm`，但特权操作需要系统总线上已安装并激活的助手，因此推荐用 deb 包部署。
 
 ## 平台说明
 

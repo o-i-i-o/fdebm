@@ -41,17 +41,17 @@ def load_ini(path):
 
 
 def test_polkit_policy():
-    path = os.path.join(PACKAGING, "com.debmanager.helper.policy")
+    path = os.path.join(PACKAGING, "org.fdebm.helper.policy")
     root = ET.parse(path).getroot()
     actions = {}
     for action in root.findall("action"):
         actions[action.get("id")] = action
 
     expected = {
-        "com.debmanager.helper.install",
-        "com.debmanager.helper.remove",
-        "com.debmanager.helper.update-cache",
-        "com.debmanager.helper.upgrade",
+        "org.fdebm.helper.install",
+        "org.fdebm.helper.remove",
+        "org.fdebm.helper.update-cache",
+        "org.fdebm.helper.upgrade",
     }
     check(set(actions) == expected, "polkit 策略包含且仅包含四个 helper action")
 
@@ -65,7 +65,7 @@ def test_polkit_policy():
         allow_active = defaults.findtext("allow_active")
         check(allow_any == "no", "%s allow_any=no" % action_id)
         check(allow_inactive == "auth_admin", "%s allow_inactive=auth_admin" % action_id)
-        if action_id == "com.debmanager.helper.update-cache":
+        if action_id == "org.fdebm.helper.update-cache":
             check(allow_active == "yes", "%s allow_active=yes" % action_id)
         else:
             check(allow_active == "auth_admin_keep",
@@ -79,19 +79,19 @@ def test_polkit_policy():
 
 
 def test_bus_policy():
-    path = os.path.join(PACKAGING, "com.debmanager.Helper.conf")
+    path = os.path.join(PACKAGING, "org.fdebm.Helper.conf")
     root = ET.parse(path).getroot()
     owner_ok = False
     send_ok = False
     for policy in root.findall("policy"):
         if policy.get("user") == "root":
-            owner_ok = any(item.get("own") == "com.debmanager.Helper"
+            owner_ok = any(item.get("own") == "org.fdebm.Helper"
                            for item in policy.findall("allow"))
         if policy.get("context") == "default":
-            send_ok = any(item.get("send_destination") == "com.debmanager.Helper"
-                          and item.get("send_interface") == "com.debmanager.Helper1"
+            send_ok = any(item.get("send_destination") == "org.fdebm.Helper"
+                          and item.get("send_interface") == "org.fdebm.Helper1"
                           for item in policy.findall("allow"))
-    check(owner_ok, "总线策略允许 root 拥有 com.debmanager.Helper")
+    check(owner_ok, "总线策略允许 root 拥有 org.fdebm.Helper")
     check(send_ok, "总线策略允许向 Helper1 接口发送调用")
 
     if shutil.which("dbus-daemon") is None:
@@ -132,21 +132,21 @@ def test_bus_policy():
 
 
 def test_service_files():
-    activation = load_ini(os.path.join(PACKAGING, "com.debmanager.Helper.dbus-service"))
-    check(activation.get("D-BUS Service", "Name", fallback="") == "com.debmanager.Helper",
+    activation = load_ini(os.path.join(PACKAGING, "org.fdebm.Helper.dbus-service"))
+    check(activation.get("D-BUS Service", "Name", fallback="") == "org.fdebm.Helper",
           "D-Bus 激活文件的服务名正确")
     check(activation.get("D-BUS Service", "Exec", fallback="")
-          == "/usr/lib/apt-gui/apt-helperd",
-          "D-Bus 激活文件指向 apt-helperd")
+          == "/usr/lib/fdebm/fdebm-helperd",
+          "D-Bus 激活文件指向 fdebm-helperd")
     check(activation.get("D-BUS Service", "User", fallback="") == "root",
           "D-Bus 激活文件以 root 启动")
 
-    unit = load_ini(os.path.join(PACKAGING, "com.debmanager.Helper.service"))
+    unit = load_ini(os.path.join(PACKAGING, "org.fdebm.Helper.service"))
     service = "Service"
     check(unit.get(service, "Type", fallback="") == "dbus", "systemd 单元 Type=dbus")
-    check(unit.get(service, "BusName", fallback="") == "com.debmanager.Helper",
+    check(unit.get(service, "BusName", fallback="") == "org.fdebm.Helper",
           "systemd 单元 BusName 正确")
-    check(unit.get(service, "ExecStart", fallback="") == "/usr/lib/apt-gui/apt-helperd",
+    check(unit.get(service, "ExecStart", fallback="") == "/usr/lib/fdebm/fdebm-helperd",
           "systemd 单元 ExecStart 与激活文件一致")
     check(unit.get(service, "User", fallback="") == "root", "systemd 单元以 root 运行")
     for key in ("NoNewPrivileges", "PrivateTmp", "ProtectKernelTunables",
@@ -156,25 +156,25 @@ def test_service_files():
 
 
 def test_desktop():
-    parser = load_ini(os.path.join(PACKAGING, "apt-gui.desktop"))
-    check(parser.get("Desktop Entry", "Exec", fallback="") == "apt-gui",
-          "桌面入口 Exec=apt-gui")
-    check(parser.get("Desktop Entry", "Icon", fallback="") == "apt-gui",
-          "桌面入口 Icon=apt-gui")
+    parser = load_ini(os.path.join(PACKAGING, "fdebm.desktop"))
+    check(parser.get("Desktop Entry", "Exec", fallback="") == "fdebm",
+          "桌面入口 Exec=fdebm")
+    check(parser.get("Desktop Entry", "Icon", fallback="") == "fdebm",
+          "桌面入口 Icon=fdebm")
     check("System" in parser.get("Desktop Entry", "Categories", fallback=""),
           "桌面入口属于 System 分类")
-    check(os.path.isfile(os.path.join(PACKAGING, "apt-gui.svg")), "桌面图标文件存在")
+    check(os.path.isfile(os.path.join(PACKAGING, "fdebm.svg")), "桌面图标文件存在")
 
 
 def test_dbus_interface():
-    path = os.path.join(REPO, "dbus", "com.debmanager.Helper1.xml")
+    path = os.path.join(REPO, "dbus", "org.fdebm.Helper1.xml")
     root = ET.parse(path).getroot()
     interfaces = root.findall("interface")
     check(len(interfaces) == 1, "接口 XML 只声明一个接口")
     if not interfaces:
         return
     iface = interfaces[0]
-    check(iface.get("name") == "com.debmanager.Helper1", "接口名称为 com.debmanager.Helper1")
+    check(iface.get("name") == "org.fdebm.Helper1", "接口名称为 org.fdebm.Helper1")
 
     methods = {}
     for method in iface.findall("method"):
@@ -200,9 +200,9 @@ def test_dbus_interface():
 
 
 def test_no_legacy_pkexec():
-    check(not os.path.exists(os.path.join(REPO, "com.debmanager.policy")),
+    check(not os.path.exists(os.path.join(REPO, "org.fdebm.policy")),
           "不再保留根目录 pkexec 策略")
-    policy_text = read(os.path.join(PACKAGING, "com.debmanager.helper.policy"))
+    policy_text = read(os.path.join(PACKAGING, "org.fdebm.helper.policy"))
     check("pkexec" not in policy_text, "polkit 策略不包含 pkexec action")
 
 

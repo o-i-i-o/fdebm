@@ -6,7 +6,7 @@ set -u
 REPO_DIR=$(cd "$(dirname "$0")/.." && pwd)
 CLIENT=$REPO_DIR/tests/security_client.py
 FAKE_POLKIT=$REPO_DIR/tests/fake_polkit.py
-ALLOW_ALL="com.debmanager.helper.install,com.debmanager.helper.remove,com.debmanager.helper.update-cache,com.debmanager.helper.upgrade"
+ALLOW_ALL="org.fdebm.helper.install,org.fdebm.helper.remove,org.fdebm.helper.update-cache,org.fdebm.helper.upgrade"
 
 if ! python3 -c "import gi" >/dev/null 2>&1; then
     echo "SKIP: 需要 python3-gi"
@@ -21,7 +21,7 @@ if [ -z "${BUILD_DIR:-}" ]; then
     exit 1
 fi
 BUILD_DIR=$(cd "$BUILD_DIR" && pwd) || exit 1
-HELPER=$BUILD_DIR/apt-helperd
+HELPER=$BUILD_DIR/fdebm-helperd
 if [ ! -x "$HELPER" ]; then
     echo "未找到 $HELPER，请先构建"
     exit 1
@@ -73,8 +73,8 @@ start_stack() {
 
     local i
     for i in $(seq 1 100); do
-        if timeout 2 gdbus introspect --address "$ADDR" --dest com.debmanager.Helper \
-                --object-path /com/debmanager/Helper >/dev/null 2>&1; then
+        if timeout 2 gdbus introspect --address "$ADDR" --dest org.fdebm.Helper \
+                --object-path /org/fdebm/Helper >/dev/null 2>&1; then
             return 0
         fi
         sleep 0.05
@@ -210,8 +210,8 @@ polkit_subject_ok() {
 
 polkit_actions_seen() {
     local action
-    for action in com.debmanager.helper.install com.debmanager.helper.remove \
-            com.debmanager.helper.update-cache com.debmanager.helper.upgrade; do
+    for action in org.fdebm.helper.install org.fdebm.helper.remove \
+            org.fdebm.helper.update-cache org.fdebm.helper.upgrade; do
         grep -q "action=$action .*subject=ok" "$WORK/polkit.log" || {
             echo "polkit 日志缺少 $action" >&2
             return 1

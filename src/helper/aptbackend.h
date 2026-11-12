@@ -47,7 +47,7 @@ private:
 
     QProcess *m_process = nullptr;
     QString m_transaction;
-    QString m_stagingDir = QStringLiteral("/var/lib/apt-gui/staging");
+    QString m_stagingDir = QStringLiteral("/var/lib/fdebm/staging");
     QStringList m_stagedFiles;
     QString m_lastError;
     int m_counter = 0;

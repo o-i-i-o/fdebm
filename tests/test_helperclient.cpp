@@ -8,13 +8,13 @@
 
 namespace
 {
-const char kService[] = "com.debmanager.Helper";
-const char kPath[] = "/com/debmanager/Helper";
+const char kService[] = "org.fdebm.Helper";
+const char kPath[] = "/org/fdebm/Helper";
 
 class FakeHelper : public QObject
 {
     Q_OBJECT
-    Q_CLASSINFO("D-Bus Interface", "com.debmanager.Helper1")
+    Q_CLASSINFO("D-Bus Interface", "org.fdebm.Helper1")
 
 public slots:
     QString UpdateCache()

@@ -7,8 +7,8 @@ if [ -z "${BUILD_DIR:-}" ]; then
     exit 1
 fi
 BUILD_DIR=$(cd "$BUILD_DIR" && pwd) || exit 1
-GUI=$BUILD_DIR/apt-gui
-HELPER=$BUILD_DIR/apt-helperd
+GUI=$BUILD_DIR/fdebm
+HELPER=$BUILD_DIR/fdebm-helperd
 
 if [ ! -x "$GUI" ] || [ ! -x "$HELPER" ]; then
     echo "未找到构建产物，请先构建（GUI=$GUI，HELPER=$HELPER）" >&2
@@ -45,8 +45,8 @@ HELPER_PID=$!
 
 if command -v gdbus >/dev/null 2>&1; then
     for _ in $(seq 1 100); do
-        if timeout 2 gdbus introspect --address "$ADDR" --dest com.debmanager.Helper \
-                --object-path /com/debmanager/Helper >/dev/null 2>&1; then
+        if timeout 2 gdbus introspect --address "$ADDR" --dest org.fdebm.Helper \
+                --object-path /org/fdebm/Helper >/dev/null 2>&1; then
             break
         fi
         sleep 0.05

@@ -2,7 +2,7 @@
 <!DOCTYPE node PUBLIC "-//freedesktop//DTD D-BUS Object Introspection 1.0//EN"
   "http://www.freedesktop.org/standards/dbus/1.0/introspect.dtd">
 <node>
-  <interface name="com.debmanager.Helper1">
+  <interface name="org.fdebm.Helper1">
     <method name="InstallLocalPackages">
       <arg name="paths" type="as" direction="in"/>
       <arg name="transaction" type="s" direction="out"/>

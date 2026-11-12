@@ -11,9 +11,9 @@
 
 namespace
 {
-const char kErrorBusy[] = "com.debmanager.Helper1.Error.Busy";
-const char kErrorNotAuthorized[] = "com.debmanager.Helper1.Error.NotAuthorized";
-const char kErrorInvalidArgument[] = "com.debmanager.Helper1.Error.InvalidArgument";
+const char kErrorBusy[] = "org.fdebm.Helper1.Error.Busy";
+const char kErrorNotAuthorized[] = "org.fdebm.Helper1.Error.NotAuthorized";
+const char kErrorInvalidArgument[] = "org.fdebm.Helper1.Error.InvalidArgument";
 
 // /proc/<pid>/stat 的第 22 个字段，用于消除 PID 复用导致的身份歧义
 bool readProcessStartTime(quint32 pid, quint64 *startTime)
@@ -74,7 +74,7 @@ QString HelperService::InstallLocalPackages(const QStringList &paths)
         error = QStringLiteral("本地安装包校验失败（详情见系统日志）");
     }
 
-    handleRequest(QStringLiteral("com.debmanager.helper.install"), error,
+    handleRequest(QStringLiteral("org.fdebm.helper.install"), error,
                   [this, packages]() {
         return m_backend->installLocalPackages(*packages);
     });
@@ -84,7 +84,7 @@ QString HelperService::InstallLocalPackages(const QStringList &paths)
 QString HelperService::InstallPackages(const QStringList &names)
 {
     const QString error = PackageArgs::validatePackageNames(names);
-    handleRequest(QStringLiteral("com.debmanager.helper.install"), error,
+    handleRequest(QStringLiteral("org.fdebm.helper.install"), error,
                   [this, names]() {
         return m_backend->installPackages(names);
     });
@@ -94,7 +94,7 @@ QString HelperService::InstallPackages(const QStringList &names)
 QString HelperService::RemovePackages(const QStringList &names, bool purge)
 {
     const QString error = PackageArgs::validatePackageNames(names);
-    handleRequest(QStringLiteral("com.debmanager.helper.remove"), error,
+    handleRequest(QStringLiteral("org.fdebm.helper.remove"), error,
                   [this, names, purge]() {
         return m_backend->removePackages(names, purge);
     });
@@ -103,7 +103,7 @@ QString HelperService::RemovePackages(const QStringList &names, bool purge)
 
 QString HelperService::UpdateCache()
 {
-    handleRequest(QStringLiteral("com.debmanager.helper.update-cache"), QString(),
+    handleRequest(QStringLiteral("org.fdebm.helper.update-cache"), QString(),
                   [this]() {
         return m_backend->updateCache();
     });
@@ -112,7 +112,7 @@ QString HelperService::UpdateCache()
 
 QString HelperService::Upgrade(bool distUpgrade)
 {
-    handleRequest(QStringLiteral("com.debmanager.helper.upgrade"), QString(),
+    handleRequest(QStringLiteral("org.fdebm.helper.upgrade"), QString(),
                   [this, distUpgrade]() {
         return m_backend->upgrade(distUpgrade);
     });
@@ -121,7 +121,7 @@ QString HelperService::Upgrade(bool distUpgrade)
 
 QString HelperService::AutoRemove()
 {
-    handleRequest(QStringLiteral("com.debmanager.helper.remove"), QString(),
+    handleRequest(QStringLiteral("org.fdebm.helper.remove"), QString(),
                   [this]() {
         return m_backend->autoRemove();
     });
@@ -244,8 +244,8 @@ void HelperService::sendSignal(const QString &member, const QVariantList &argume
     }
 
     QDBusMessage signal = QDBusMessage::createTargetedSignal(destination,
-                                                             QStringLiteral("/com/debmanager/Helper"),
-                                                             QStringLiteral("com.debmanager.Helper1"),
+                                                             QStringLiteral("/org/fdebm/Helper"),
+                                                             QStringLiteral("org.fdebm.Helper1"),
                                                              member);
     signal.setArguments(arguments);
 

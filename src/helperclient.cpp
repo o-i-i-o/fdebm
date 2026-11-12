@@ -10,9 +10,9 @@
 
 namespace
 {
-const char kService[] = "com.debmanager.Helper";
-const char kPath[] = "/com/debmanager/Helper";
-const char kInterface[] = "com.debmanager.Helper1";
+const char kService[] = "org.fdebm.Helper";
+const char kPath[] = "/org/fdebm/Helper";
+const char kInterface[] = "org.fdebm.Helper1";
 
 // 助手等待 polkit 最长 120 秒，客户端需更宽限
 const int kCallTimeoutMs = 150000;
@@ -28,18 +28,18 @@ QString friendlyError(const QString &name, const QString &message)
         detail = QStringLiteral("未知错误");
     }
 
-    if (name == QLatin1String("com.debmanager.Helper1.Error.NotAuthorized")) {
+    if (name == QLatin1String("org.fdebm.Helper1.Error.NotAuthorized")) {
         return QStringLiteral("未获得授权：%1").arg(detail);
     }
-    if (name == QLatin1String("com.debmanager.Helper1.Error.Busy")) {
+    if (name == QLatin1String("org.fdebm.Helper1.Error.Busy")) {
         return QStringLiteral("已有操作正在进行，请稍后再试");
     }
-    if (name == QLatin1String("com.debmanager.Helper1.Error.InvalidArgument")) {
+    if (name == QLatin1String("org.fdebm.Helper1.Error.InvalidArgument")) {
         return QStringLiteral("参数无效：%1").arg(detail);
     }
     if (name == QLatin1String("org.freedesktop.DBus.Error.ServiceUnknown")
         || name == QLatin1String("org.freedesktop.DBus.Error.NameHasNoOwner")) {
-        return QStringLiteral("包管理助手服务未运行，请检查 apt-helperd 是否已启动");
+        return QStringLiteral("包管理助手服务未运行，请检查 fdebm-helperd 是否已启动");
     }
     if (name == QLatin1String("org.freedesktop.DBus.Error.NoReply")) {
         return QStringLiteral("等待助手响应超时：%1").arg(detail);

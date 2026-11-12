@@ -1,5 +1,0 @@
-[D-BUS Service]
-Name=com.debmanager.Helper
-Exec=/usr/lib/apt-gui/apt-helperd
-User=root
-SystemdService=com.debmanager.Helper.service

@@ -16,10 +16,10 @@ import time
 from gi.repository import Gio, GLib
 
 DEFAULT_ACTIONS = ",".join([
-    "com.debmanager.helper.install",
-    "com.debmanager.helper.remove",
-    "com.debmanager.helper.update-cache",
-    "com.debmanager.helper.upgrade",
+    "org.fdebm.helper.install",
+    "org.fdebm.helper.remove",
+    "org.fdebm.helper.update-cache",
+    "org.fdebm.helper.upgrade",
 ])
 
 xml = """

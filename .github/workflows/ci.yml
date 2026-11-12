@@ -43,10 +43,10 @@ jobs:
       - name: Validate metadata
         run: |
           xmllint --noout \
-            dbus/com.debmanager.Helper1.xml \
-            packaging/com.debmanager.Helper.conf \
-            packaging/com.debmanager.helper.policy
-          desktop-file-validate packaging/apt-gui.desktop
+            dbus/org.fdebm.Helper1.xml \
+            packaging/org.fdebm.Helper.conf \
+            packaging/org.fdebm.helper.policy
+          desktop-file-validate packaging/fdebm.desktop
           if grep -rnE '1\.[0-9]+\.[0-9]+' src include; then
             echo "版本号必须只来自 CMakeLists.txt 的 project(VERSION)" >&2
             exit 1
@@ -135,7 +135,7 @@ jobs:
 
       - name: Inspect package
         run: |
-          deb=$(ls build-ci/apt-gui_*_*.deb)
+          deb=$(ls build-ci/fdebm_*_*.deb)
           dpkg-deb --info "$deb"
           expected=$(sed -n 's/^CMAKE_PROJECT_VERSION:STATIC=//p' build-ci/CMakeCache.txt)
           actual=$(dpkg-deb -f "$deb" Version)
@@ -143,20 +143,20 @@ jobs:
             echo "包版本 $actual 与 CMake 项目版本 $expected 不一致" >&2
             exit 1
           fi
-          dpkg-deb -c "$deb" | grep -E ' \./usr/(bin/apt-gui|lib/apt-gui/apt-helperd|lib/systemd/system/com\.debmanager\.Helper\.service|share/applications/apt-gui\.desktop|share/dbus-1/system-services/com\.debmanager\.Helper\.service|share/dbus-1/system\.d/com\.debmanager\.Helper\.conf|share/icons/hicolor/scalable/apps/apt-gui\.svg|share/polkit-1/actions/com\.debmanager\.helper\.policy)$'
-          if dpkg-deb -c "$deb" | grep -q 'com\.debmanager\.policy'; then
+          dpkg-deb -c "$deb" | grep -E ' \./usr/(bin/fdebm|lib/fdebm/fdebm-helperd|lib/systemd/system/org\.fdebm\.Helper\.service|share/applications/fdebm\.desktop|share/dbus-1/system-services/org\.fdebm\.Helper\.service|share/dbus-1/system\.d/org\.fdebm\.Helper\.conf|share/icons/hicolor/scalable/apps/fdebm\.svg|share/polkit-1/actions/org\.fdebm\.helper\.policy)$'
+          if dpkg-deb -c "$deb" | grep -q 'org\.fdebm\.policy'; then
             echo "旧 pkexec 策略不应再被打包" >&2
             exit 1
           fi
           dpkg-deb --fsys-tarfile "$deb" \
-            | tar -xOf - ./usr/share/polkit-1/actions/com.debmanager.helper.policy \
+            | tar -xOf - ./usr/share/polkit-1/actions/org.fdebm.helper.policy \
             | grep -q 'auth_admin_keep'
 
       - name: Upload deb artifact
         uses: actions/upload-artifact@v4
         with:
-          name: apt-gui-deb
-          path: build-ci/apt-gui_*_*.deb
+          name: fdebm-deb
+          path: build-ci/fdebm_*_*.deb
           if-no-files-found: error
           retention-days: 14
 
@@ -204,7 +204,7 @@ jobs:
 
       - name: Verify arm64 package
         run: |
-          deb=$(ls "$RUNNER_TEMP"/cross-arm64/apt-gui_*_arm64.deb)
+          deb=$(ls "$RUNNER_TEMP"/cross-arm64/fdebm_*_arm64.deb)
           expected=$(sed -n 's/^CMAKE_PROJECT_VERSION:STATIC=//p' "$RUNNER_TEMP/cross-arm64/CMakeCache.txt")
           actual=$(dpkg-deb -f "$deb" Version)
           if [ -z "$expected" ] || [ "$actual" != "$expected" ]; then
@@ -215,21 +215,21 @@ jobs:
           extract="$RUNNER_TEMP/extract-arm64"
           mkdir -p "$extract"
           dpkg-deb -x "$deb" "$extract"
-          for bin in usr/bin/apt-gui usr/lib/apt-gui/apt-helperd; do
+          for bin in usr/bin/fdebm usr/lib/fdebm/fdebm-helperd; do
             if ! LC_ALL=C readelf -h "$extract/$bin" | grep -q 'AArch64'; then
               echo "$bin 不是 AArch64 产物" >&2
               exit 1
             fi
           done
-          dpkg-deb -c "$deb" | grep -E ' \./usr/(bin/apt-gui|lib/apt-gui/apt-helperd)$'
+          dpkg-deb -c "$deb" | grep -E ' \./usr/(bin/fdebm|lib/fdebm/fdebm-helperd)$'
           dpkg-deb --fsys-tarfile "$deb" \
-            | tar -xOf - ./usr/share/polkit-1/actions/com.debmanager.helper.policy \
+            | tar -xOf - ./usr/share/polkit-1/actions/org.fdebm.helper.policy \
             | grep -q 'auth_admin_keep'
 
       - name: Upload arm64 deb artifact
         uses: actions/upload-artifact@v4
         with:
-          name: apt-gui-deb-arm64
-          path: ${{ runner.temp }}/cross-arm64/apt-gui_*_arm64.deb
+          name: fdebm-deb-arm64
+          path: ${{ runner.temp }}/cross-arm64/fdebm_*_arm64.deb
           if-no-files-found: error
           retention-days: 14

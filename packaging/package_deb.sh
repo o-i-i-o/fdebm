@@ -13,9 +13,9 @@
 
 set -euo pipefail
 
-APP_NAME="apt-gui"
+APP_NAME="fdebm"
 MAINTAINER="oi-io <boss@oi-io.cc>"
-HOMEPAGE="https://github.com/o-i-i-o/uos-apt-gui"
+HOMEPAGE="https://github.com/o-i-i-o/fdebm"
 DEPENDS="apt, polkitd | policykit-1, libc6, libstdc++6, libqt5core5a, libqt5widgets5, libqt5dbus5"
 
 REPO_DIR=$(cd "$(dirname "$0")/.." && pwd)
@@ -132,7 +132,7 @@ Section: admin
 Priority: optional
 Description: DEB package manager with a polkit-authorized helper
  桌面端 DEB 包管理器。安装、卸载、更新等特权操作通过系统总线调用
- apt-helperd，由 polkit 完成授权，客户端无需以 root 运行。
+ fdebm-helperd，由 polkit 完成授权，客户端无需以 root 运行。
 EOF
 
 echo "4. 生成维护脚本..."
@@ -185,4 +185,4 @@ dpkg-deb --info "$OUTPUT_DEB" | sed -n '1,18p'
 echo
 echo "安装：sudo apt install $OUTPUT_DEB"
 echo "卸载：sudo apt remove $APP_NAME"
-echo "验证：busctl introspect com.debmanager.Helper /com/debmanager/Helper"
+echo "验证：busctl introspect org.fdebm.Helper /org/fdebm/Helper"

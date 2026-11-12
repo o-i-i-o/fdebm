@@ -5,7 +5,7 @@
 int main(int argc, char *argv[])
 {
     QApplication a(argc, argv);
-    QCoreApplication::setApplicationVersion(QStringLiteral(APT_GUI_VERSION));
+    QCoreApplication::setApplicationVersion(QStringLiteral(FDEBM_VERSION));
     QTextCodec::setCodecForLocale(QTextCodec::codecForName("UTF-8"));
 
     MainWindow w;

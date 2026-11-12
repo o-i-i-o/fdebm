@@ -8,8 +8,8 @@
 int main(int argc, char *argv[])
 {
     QCoreApplication app(argc, argv);
-    QCoreApplication::setApplicationName(QStringLiteral("apt-helperd"));
-    QCoreApplication::setApplicationVersion(QStringLiteral(APT_GUI_VERSION));
+    QCoreApplication::setApplicationName(QStringLiteral("fdebm-helperd"));
+    QCoreApplication::setApplicationVersion(QStringLiteral(FDEBM_VERSION));
 
     const QStringList arguments = app.arguments();
     const bool dryRun = arguments.contains(QStringLiteral("--dry-run"));
@@ -55,18 +55,18 @@ int main(int argc, char *argv[])
         qCritical() << "无法连接系统总线:" << bus.lastError().message();
         return 1;
     }
-    if (!bus.registerObject(QStringLiteral("/com/debmanager/Helper"), &service,
+    if (!bus.registerObject(QStringLiteral("/org/fdebm/Helper"), &service,
                             QDBusConnection::ExportAllSlots | QDBusConnection::ExportAllSignals)) {
         qCritical() << "注册 D-Bus 对象失败:" << bus.lastError().message();
         return 1;
     }
-    if (!bus.registerService(QStringLiteral("com.debmanager.Helper"))) {
+    if (!bus.registerService(QStringLiteral("org.fdebm.Helper"))) {
         qCritical() << "注册 D-Bus 服务名失败:" << bus.lastError().message();
         return 1;
     }
 
     if (dryRun) {
-        qInfo() << "apt-helperd 以 dry-run 模式运行，不执行真实命令";
+        qInfo() << "fdebm-helperd 以 dry-run 模式运行，不执行真实命令";
     }
 
     return app.exec();

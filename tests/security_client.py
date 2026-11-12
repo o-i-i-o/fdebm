@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""apt-helperd 安全用例客户端。
+"""fdebm-helperd 安全用例客户端。
 
 用法: security_client.py <bus-address> <command> [args...]
 
@@ -27,9 +27,9 @@ import sys
 
 from gi.repository import Gio, GLib
 
-BUS_NAME = "com.debmanager.Helper"
-BUS_PATH = "/com/debmanager/Helper"
-IFACE = "com.debmanager.Helper1"
+BUS_NAME = "org.fdebm.Helper"
+BUS_PATH = "/org/fdebm/Helper"
+IFACE = "org.fdebm.Helper1"
 
 
 def fail(message):

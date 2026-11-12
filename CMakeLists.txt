@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(apt-gui VERSION 1.0.2 LANGUAGES CXX)
+project(fdebm VERSION 1.0.2 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -38,13 +38,13 @@ set(HEADERS
     src/common/programpaths.h
 )
 
-add_executable(apt-gui ${SOURCES} ${HEADERS})
+add_executable(fdebm ${SOURCES} ${HEADERS})
 
-target_include_directories(apt-gui PRIVATE src/common)
-target_link_libraries(apt-gui Qt5::Widgets Qt5::DBus)
-target_compile_definitions(apt-gui PRIVATE APT_GUI_VERSION="${PROJECT_VERSION}")
+target_include_directories(fdebm PRIVATE src/common)
+target_link_libraries(fdebm Qt5::Widgets Qt5::DBus)
+target_compile_definitions(fdebm PRIVATE FDEBM_VERSION="${PROJECT_VERSION}")
 
-install(TARGETS apt-gui RUNTIME DESTINATION bin)
+install(TARGETS fdebm RUNTIME DESTINATION bin)
 
 set(HELPER_SOURCES
     src/helper/main.cpp
@@ -67,26 +67,26 @@ set(HELPER_HEADERS
     src/common/proxyconfig.h
 )
 
-add_executable(apt-helperd ${HELPER_SOURCES} ${HELPER_HEADERS})
+add_executable(fdebm-helperd ${HELPER_SOURCES} ${HELPER_HEADERS})
 
-target_include_directories(apt-helperd PRIVATE src/helper src/common)
-target_link_libraries(apt-helperd Qt5::Core Qt5::DBus)
-target_compile_definitions(apt-helperd PRIVATE APT_GUI_VERSION="${PROJECT_VERSION}")
+target_include_directories(fdebm-helperd PRIVATE src/helper src/common)
+target_link_libraries(fdebm-helperd Qt5::Core Qt5::DBus)
+target_compile_definitions(fdebm-helperd PRIVATE FDEBM_VERSION="${PROJECT_VERSION}")
 
-install(TARGETS apt-helperd RUNTIME DESTINATION lib/apt-gui)
+install(TARGETS fdebm-helperd RUNTIME DESTINATION lib/fdebm)
 
-install(FILES packaging/com.debmanager.Helper.conf
+install(FILES packaging/org.fdebm.Helper.conf
         DESTINATION share/dbus-1/system.d)
-install(FILES packaging/com.debmanager.Helper.dbus-service
+install(FILES packaging/org.fdebm.Helper.dbus-service
         DESTINATION share/dbus-1/system-services
-        RENAME com.debmanager.Helper.service)
-install(FILES packaging/com.debmanager.Helper.service
+        RENAME org.fdebm.Helper.service)
+install(FILES packaging/org.fdebm.Helper.service
         DESTINATION lib/systemd/system)
-install(FILES packaging/com.debmanager.helper.policy
+install(FILES packaging/org.fdebm.helper.policy
         DESTINATION share/polkit-1/actions)
-install(FILES packaging/apt-gui.desktop
+install(FILES packaging/fdebm.desktop
         DESTINATION share/applications)
-install(FILES packaging/apt-gui.svg
+install(FILES packaging/fdebm.svg
         DESTINATION share/icons/hicolor/scalable/apps)
 
 if(BUILD_TESTING)

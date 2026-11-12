@@ -4,10 +4,10 @@
   "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
 <policyconfig>
 
-  <vendor>DebManager</vendor>
-  <vendor_url>https://github.com/o-i-i-o/uos-apt-gui</vendor_url>
+  <vendor>Fdebm</vendor>
+  <vendor_url>https://github.com/o-i-i-o/fdebm</vendor_url>
 
-  <action id="com.debmanager.helper.install">
+  <action id="org.fdebm.helper.install">
     <description>安装软件包</description>
     <message>需要身份验证才能安装软件包</message>
     <icon_name>system-software-install</icon_name>
@@ -18,7 +18,7 @@
     </defaults>
   </action>
 
-  <action id="com.debmanager.helper.remove">
+  <action id="org.fdebm.helper.remove">
     <description>卸载软件包</description>
     <message>需要身份验证才能卸载软件包</message>
     <icon_name>system-software-remove</icon_name>
@@ -29,7 +29,7 @@
     </defaults>
   </action>
 
-  <action id="com.debmanager.helper.update-cache">
+  <action id="org.fdebm.helper.update-cache">
     <description>更新软件包缓存</description>
     <message>需要身份验证才能更新软件包缓存</message>
     <icon_name>system-software-update</icon_name>
@@ -40,7 +40,7 @@
     </defaults>
   </action>
 
-  <action id="com.debmanager.helper.upgrade">
+  <action id="org.fdebm.helper.upgrade">
     <description>更新系统软件包</description>
     <message>需要身份验证才能更新系统软件包</message>
     <icon_name>system-software-update</icon_name>

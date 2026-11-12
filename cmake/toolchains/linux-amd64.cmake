@@ -12,7 +12,7 @@
 # 交叉编译时测试默认关闭；如需在 qemu 下运行，安装 qemu-user-static 后
 # 显式加 -DBUILD_TESTING=ON。
 
-set(APT_GUI_CROSS_TRIPLET x86_64-linux-gnu)
-set(APT_GUI_CROSS_PROCESSOR x86_64)
+set(FDEBM_CROSS_TRIPLET x86_64-linux-gnu)
+set(FDEBM_CROSS_PROCESSOR x86_64)
 
 include("${CMAKE_CURRENT_LIST_DIR}/debian-multiarch-cross.cmake")

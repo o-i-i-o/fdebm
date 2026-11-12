@@ -351,7 +351,7 @@ QString AptBackend::begin(const QString &program, const QStringList &arguments)
     environment.insert(QStringLiteral("DEBIAN_FRONTEND"), QStringLiteral("noninteractive"));
     environment.insert(QStringLiteral("APT_LISTCHANGES_FRONTEND"), QStringLiteral("none"));
     // 登录会话的代理环境不进入特权进程；仅从 root 可写的固定配置转发白名单变量
-    ProxyConfig::applyFromFile(QStringLiteral("/etc/apt-gui/proxy.conf"), &environment);
+    ProxyConfig::applyFromFile(QStringLiteral("/etc/fdebm/proxy.conf"), &environment);
     m_process->setProcessEnvironment(environment);
     m_process->setWorkingDirectory(QStringLiteral("/"));
     m_process->setStandardInputFile(QProcess::nullDevice());

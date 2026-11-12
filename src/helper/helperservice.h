@@ -15,7 +15,7 @@ class AptBackend;
 class HelperService : public QObject, public QDBusContext
 {
     Q_OBJECT
-    Q_CLASSINFO("D-Bus Interface", "com.debmanager.Helper1")
+    Q_CLASSINFO("D-Bus Interface", "org.fdebm.Helper1")
 
 public:
     explicit HelperService(AptBackend *backend, QObject *parent = nullptr);

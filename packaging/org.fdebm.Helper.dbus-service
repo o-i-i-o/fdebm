@@ -1,0 +1,5 @@
+[D-BUS Service]
+Name=org.fdebm.Helper
+Exec=/usr/lib/fdebm/fdebm-helperd
+User=root
+SystemdService=org.fdebm.Helper.service
