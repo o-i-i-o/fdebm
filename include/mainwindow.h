@@ -24,6 +24,9 @@ public:
     explicit MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
 
+    // 启动后在后台静默执行一次 apt update，不弹出进度对话框
+    void startBackgroundAptUpdate();
+
 private slots:
     void refreshPackageList();
     void searchLocalPackages();
@@ -83,6 +86,13 @@ private:
     
     PackageManager *packageManager;
     QList<DebPackage> allPackages;
+
+    // 后台静默执行的 apt update，不弹进度对话框、不禁用窗口
+    bool m_backgroundUpdate = false;
+    // 在线安装成功后静默重跑上次搜索，刷新“已安装”状态
+    bool m_silentOnlineSearch = false;
+    bool m_refreshOnlineAfterInstall = false;
+    QString m_lastOnlineSearchText;
 };
 
 #endif

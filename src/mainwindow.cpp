@@ -3,6 +3,82 @@
 #include <QHBoxLayout>
 #include <QHeaderView>
 #include <QTimer>
+#include <QApplication>
+#include <QMouseEvent>
+#include <QPainter>
+#include <QStyledItemDelegate>
+#include <QStyle>
+
+namespace {
+
+// 复选框在单元格内水平居中；QTableWidget 默认始终把指示器画在左侧
+class CenteredCheckBoxDelegate : public QStyledItemDelegate
+{
+public:
+    explicit CenteredCheckBoxDelegate(QObject *parent = nullptr)
+        : QStyledItemDelegate(parent)
+    {
+    }
+
+    void paint(QPainter *painter, const QStyleOptionViewItem &option,
+               const QModelIndex &index) const override
+    {
+        QStyleOptionViewItem opt = option;
+        initStyleOption(&opt, index);
+        // 背景/选中态交给样式绘制，复选框单独居中画
+        opt.features &= ~QStyleOptionViewItem::HasCheckIndicator;
+        QStyle *style = opt.widget ? opt.widget->style() : QApplication::style();
+        style->drawControl(QStyle::CE_ItemViewItem, &opt, painter, opt.widget);
+
+        if (!index.data(Qt::CheckStateRole).isValid()) {
+            return;
+        }
+
+        QStyleOptionViewItem checkOption = option;
+        checkOption.state &= ~(QStyle::State_On | QStyle::State_Off | QStyle::State_NoChange);
+        checkOption.state |= index.data(Qt::CheckStateRole).toInt() == Qt::Checked
+                ? QStyle::State_On : QStyle::State_Off;
+        checkOption.rect = checkRect(option);
+        style->drawPrimitive(QStyle::PE_IndicatorItemViewItemCheck, &checkOption,
+                             painter, opt.widget);
+    }
+
+    bool editorEvent(QEvent *event, QAbstractItemModel *model,
+                     const QStyleOptionViewItem &option, const QModelIndex &index) override
+    {
+        // 指示器已居中，默认的左侧命中区域不再适用
+        if (event->type() == QEvent::MouseButtonRelease
+                || event->type() == QEvent::MouseButtonDblClick) {
+            if (!index.flags().testFlag(Qt::ItemIsUserCheckable)) {
+                return false;
+            }
+            const QMouseEvent *mouseEvent = static_cast<QMouseEvent *>(event);
+            if (mouseEvent->button() != Qt::LeftButton
+                    || !checkRect(option).contains(mouseEvent->pos())) {
+                return false;
+            }
+            const Qt::CheckState state =
+                    static_cast<Qt::CheckState>(index.data(Qt::CheckStateRole).toInt());
+            model->setData(index, state == Qt::Checked ? Qt::Unchecked : Qt::Checked,
+                           Qt::CheckStateRole);
+            return true;
+        }
+        return QStyledItemDelegate::editorEvent(event, model, option, index);
+    }
+
+private:
+    static QRect checkRect(const QStyleOptionViewItem &option)
+    {
+        QStyle *style = option.widget ? option.widget->style() : QApplication::style();
+        const int width = style->pixelMetric(QStyle::PM_IndicatorWidth, &option, option.widget);
+        const int height = style->pixelMetric(QStyle::PM_IndicatorHeight, &option, option.widget);
+        return QRect(option.rect.x() + (option.rect.width() - width) / 2,
+                     option.rect.y() + (option.rect.height() - height) / 2,
+                     width, height);
+    }
+};
+
+} // namespace
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
@@ -13,7 +89,8 @@ MainWindow::MainWindow(QWidget *parent)
     setupConnections();
     
     setWindowTitle("DEB包管理器");
-    setMinimumSize(1000, 600);
+    setMinimumSize(1100, 640);
+    resize(1200, 720);
     
     // 延迟检查系统命令，确保窗口完全显示
     QTimer::singleShot(100, this, [this]() {
@@ -52,6 +129,8 @@ void MainWindow::setupUI()
     
     searchEdit = new QLineEdit();
     searchEdit->setPlaceholderText("输入包名搜索已安装的包...");
+    // 按钮全部集中到顶部，搜索框不再抢占宽度
+    searchEdit->setMaximumWidth(260);
     searchLayout->addWidget(searchEdit);
     
     searchButton = new QPushButton("搜索");
@@ -62,6 +141,15 @@ void MainWindow::setupUI()
     
     batchInstallButton = new QPushButton("安装本地包");
     searchLayout->addWidget(batchInstallButton);
+    
+    removeButton = new QPushButton("卸载选中包");
+    searchLayout->addWidget(removeButton);
+    
+    purgeConfigCheckbox = new QCheckBox("删除配置文件");
+    searchLayout->addWidget(purgeConfigCheckbox);
+    
+    autoRemoveButton = new QPushButton("自动清理");
+    searchLayout->addWidget(autoRemoveButton);
     
     searchLayout->addStretch();
     installedLayout->addLayout(searchLayout);
@@ -74,22 +162,10 @@ void MainWindow::setupUI()
     packageTable->setSelectionMode(QAbstractItemView::ExtendedSelection);
     packageTable->setContextMenuPolicy(Qt::CustomContextMenu);
     packageTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Interactive);
+    packageTable->verticalHeader()->setDefaultAlignment(Qt::AlignCenter);
+    packageTable->setItemDelegateForColumn(0, new CenteredCheckBoxDelegate(packageTable));
     packageTable->setSortingEnabled(true);
     installedLayout->addWidget(packageTable);
-    
-    // 操作按钮区域
-    QHBoxLayout *buttonLayout = new QHBoxLayout();
-    
-    removeButton = new QPushButton("卸载选中包");
-    purgeConfigCheckbox = new QCheckBox("删除配置文件");
-    autoRemoveButton = new QPushButton("自动清理");
-    
-    buttonLayout->addWidget(removeButton);
-    buttonLayout->addWidget(purgeConfigCheckbox);
-    buttonLayout->addWidget(autoRemoveButton);
-    buttonLayout->addStretch();
-    
-    installedLayout->addLayout(buttonLayout);
     
     // 状态区域
     progressBar = new QProgressBar();
@@ -115,10 +191,14 @@ void MainWindow::setupUI()
     
     onlineSearchEdit = new QLineEdit();
     onlineSearchEdit->setPlaceholderText("输入包名搜索在线包...");
+    onlineSearchEdit->setMaximumWidth(260);
     onlineSearchLayout->addWidget(onlineSearchEdit);
     
     onlineSearchButton = new QPushButton("搜索");
     onlineSearchLayout->addWidget(onlineSearchButton);
+    
+    installOnlineButton = new QPushButton("安装选中包");
+    onlineSearchLayout->addWidget(installOnlineButton);
     
     refreshAptCacheButton = new QPushButton("更新缓存");
     onlineSearchLayout->addWidget(refreshAptCacheButton);
@@ -141,17 +221,10 @@ void MainWindow::setupUI()
     onlinePackageTable->setSelectionMode(QAbstractItemView::ExtendedSelection);
     onlinePackageTable->setContextMenuPolicy(Qt::CustomContextMenu);
     onlinePackageTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Interactive);
+    onlinePackageTable->verticalHeader()->setDefaultAlignment(Qt::AlignCenter);
+    onlinePackageTable->setItemDelegateForColumn(0, new CenteredCheckBoxDelegate(onlinePackageTable));
     onlinePackageTable->setSortingEnabled(true);
     onlineLayout->addWidget(onlinePackageTable);
-    
-    // 操作按钮区域
-    QHBoxLayout *onlineButtonLayout = new QHBoxLayout();
-    
-    installOnlineButton = new QPushButton("安装选中包");
-    onlineButtonLayout->addWidget(installOnlineButton);
-    
-    onlineButtonLayout->addStretch();
-    onlineLayout->addLayout(onlineButtonLayout);
     
     // 添加系统更新提示信息
     QLabel *updateHintLabel = new QLabel("提示：完全更新会安装新的依赖并移除过时的包，可能会改变系统版本。");
@@ -201,6 +274,15 @@ void MainWindow::refreshPackageList()
 {
     showStatusMessage("正在加载已安装包列表...");
     packageManager->loadInstalledPackages();
+}
+
+void MainWindow::startBackgroundAptUpdate()
+{
+    // 等首屏渲染和已安装列表加载开始后再更新软件源
+    QTimer::singleShot(1500, this, [this]() {
+        m_backgroundUpdate = true;
+        packageManager->updateAptCache();
+    });
 }
 
 void MainWindow::searchLocalPackages()
@@ -328,6 +410,14 @@ void MainWindow::onOperationStarted(PackageManager::OperationType type, const QS
         return;
     }
 
+    // 启动时的 apt update 与安装后的在线列表刷新都是静默后台操作
+    const bool silent = (type == PackageManager::OperationType::UpdateCache && m_backgroundUpdate)
+            || (type == PackageManager::OperationType::SearchOnline && m_silentOnlineSearch);
+    if (silent) {
+        showStatusMessage(message);
+        return;
+    }
+
     progressBar->setVisible(true);
     progressBar->setRange(0, 0); // 无限进度条
     setEnabled(false);
@@ -363,23 +453,51 @@ void MainWindow::onOperationFinished(PackageManager::OperationType type, bool su
             allPackages = packageManager->getCurrentPackages();
             populatePackageTable(allPackages);
             showStatusMessage(QString("就绪 - 共加载 %1 个已安装包").arg(allPackages.size()), 0);
+
+            // 在线安装已完成：本地列表更新后重新搜索一次，让“已安装”状态与实际一致
+            if (m_refreshOnlineAfterInstall) {
+                m_refreshOnlineAfterInstall = false;
+                if (!m_lastOnlineSearchText.isEmpty()) {
+                    m_silentOnlineSearch = true;
+                    packageManager->searchOnlinePackages(m_lastOnlineSearchText);
+                }
+            }
         } else {
             showStatusMessage(QString("加载包列表失败: %1").arg(message));
         }
         return;
     }
 
-    progressBar->setVisible(false);
-    setEnabled(true);
-
-    // 操作完成后，更新进度对话框状态，启用关闭按钮
-    if (progressDialog && progressDialog->isVisible()) {
-        progressDialog->setFinished(success, message);
+    // 启动时的 apt update 在后台静默执行，不占用进度对话框和窗口可用性
+    if (type == PackageManager::OperationType::UpdateCache && m_backgroundUpdate) {
+        m_backgroundUpdate = false;
+        showStatusMessage(success ? message
+                                  : QString("后台更新软件源失败: %1").arg(message));
+        return;
     }
 
-    if (!success) {
-        showStatusMessage(QString("操作失败: %1").arg(message));
-        return;
+    // 安装后的在线列表刷新同样是静默的，不覆盖安装对话框的结果
+    const bool silentSearch = type == PackageManager::OperationType::SearchOnline
+            && m_silentOnlineSearch;
+    if (silentSearch) {
+        m_silentOnlineSearch = false;
+        if (!success) {
+            showStatusMessage(QString("刷新在线列表失败: %1").arg(message));
+            return;
+        }
+    } else {
+        progressBar->setVisible(false);
+        setEnabled(true);
+
+        // 操作完成后，更新进度对话框状态，启用关闭按钮
+        if (progressDialog && progressDialog->isVisible()) {
+            progressDialog->setFinished(success, message);
+        }
+
+        if (!success) {
+            showStatusMessage(QString("操作失败: %1").arg(message));
+            return;
+        }
     }
 
     if (type == PackageManager::OperationType::SearchOnline) {
@@ -430,6 +548,11 @@ void MainWindow::onOperationFinished(PackageManager::OperationType type, bool su
         // 显示搜索结果数量
         showStatusMessage(QString("找到 %1 个匹配的包").arg(currentOnlinePackages.size()));
         return;
+    }
+
+    // 在线安装完成后，等待本地列表刷新结束再刷新在线列表的安装状态
+    if (type == PackageManager::OperationType::InstallOnline) {
+        m_refreshOnlineAfterInstall = true;
     }
 
     // 安装或卸载操作完成后需要刷新列表
@@ -578,7 +701,9 @@ void MainWindow::searchOnlinePackages()
         QMessageBox::warning(this, "警告", "请输入搜索关键词");
         return;
     }
-    
+
+    // 记录关键词，安装完成后用它静默刷新一次列表
+    m_lastOnlineSearchText = searchText;
     packageManager->searchOnlinePackages(searchText);
 }
 
