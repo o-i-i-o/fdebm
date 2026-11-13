@@ -18,6 +18,8 @@ const char kInterface[] = "org.fdebm.Helper1";
 const int kCallTimeoutMs = 150000;
 // 事务受理后若长时间没有任何输出，提示用户可取消
 const int kStallTimeoutMs = 10 * 60 * 1000;
+// 提示后仍长期无任何信号则放弃跟踪，避免界面永久停在忙碌状态
+const int kLostTimeoutMs = 30 * 60 * 1000;
 // 拿到事务 ID 之前最多缓冲的信号数；超出部分直接丢弃
 const int kMaxPendingSignals = 256;
 
@@ -65,13 +67,33 @@ HelperClient::HelperClient(QObject *parent)
         m_stallTimer.start();
     });
 
+    m_lostTimer.setSingleShot(true);
+    m_lostTimer.setInterval(kLostTimeoutMs);
+    connect(&m_lostTimer, &QTimer::timeout, this, [this]() {
+        if (m_state != State::Active || m_transaction.isEmpty()) {
+            return;
+        }
+        const QString transaction = m_transaction;
+        // 使在途调用与迟到信号失效，并把状态复位为可再次发起请求
+        ++m_requestSerial;
+        m_state = State::Idle;
+        m_transaction.clear();
+        m_pendingSignals.clear();
+        m_stallTimer.stop();
+        m_cancelWhenAccepted = false;
+        emit failed(QStringLiteral("包管理助手长时间无响应，已停止跟踪事务 %1，请重新打开程序确认系统状态")
+                    .arg(transaction));
+    });
+
     QDBusConnection bus = QDBusConnection::systemBus();
     if (!bus.connect(QLatin1String(kService), QLatin1String(kPath), QLatin1String(kInterface),
                      QStringLiteral("Output"), this, SLOT(onRemoteOutput(QString,QString)))) {
+        m_signalsConnected = false;
         qWarning() << "订阅助手 Output 信号失败:" << bus.lastError().message();
     }
     if (!bus.connect(QLatin1String(kService), QLatin1String(kPath), QLatin1String(kInterface),
                      QStringLiteral("Finished"), this, SLOT(onRemoteFinished(QString,int,QString)))) {
+        m_signalsConnected = false;
         qWarning() << "订阅助手 Finished 信号失败:" << bus.lastError().message();
     }
 
@@ -81,16 +103,27 @@ HelperClient::HelperClient(QObject *parent)
                 QDBusServiceWatcher::WatchForOwnerChange, this);
     connect(m_serviceWatcher, &QDBusServiceWatcher::serviceOwnerChanged, this,
             [this](const QString &, const QString &oldOwner, const QString &newOwner) {
-        if (oldOwner.isEmpty() || !newOwner.isEmpty() || m_state == State::Idle) {
+        // 服务首次注册，或当前没有在途请求时无需处理
+        if (oldOwner.isEmpty() || m_state == State::Idle) {
             return;
         }
 
+        // 服务消失或已被新进程替换：旧连接上的事务都不会再收到 Finished
+        const QString transaction = m_transaction;
         ++m_requestSerial;
         m_state = State::Idle;
         m_transaction.clear();
         m_pendingSignals.clear();
         m_stallTimer.stop();
-        emit failed(QStringLiteral("包管理助手服务已退出，操作状态未知，请重新打开程序确认系统状态"));
+        m_lostTimer.stop();
+        m_cancelWhenAccepted = false;
+
+        if (newOwner.isEmpty()) {
+            emit failed(QStringLiteral("包管理助手服务已退出，操作状态未知，请重新打开程序确认系统状态"));
+        } else {
+            emit failed(QStringLiteral("包管理助手服务已重启，事务 %1 的状态未知，请重新打开程序确认系统状态")
+                        .arg(transaction));
+        }
     });
 }
 
@@ -126,6 +159,12 @@ void HelperClient::autoRemove()
 
 void HelperClient::cancel()
 {
+    if (m_state == State::Pending) {
+        // 事务 ID 尚未返回，等受理后再取消，避免误报“没有正在进行的操作”
+        m_cancelWhenAccepted = true;
+        return;
+    }
+
     if (m_state != State::Active || m_transaction.isEmpty()) {
         emit cancelRejected(QStringLiteral("没有正在进行的操作"));
         return;
@@ -154,6 +193,12 @@ void HelperClient::cancel()
 
 void HelperClient::call(const QString &method, const QVariantList &arguments)
 {
+    if (!m_signalsConnected) {
+        // 收不到 Output/Finished，发起请求只会让界面永久停留在忙碌状态
+        emit failed(QStringLiteral("无法订阅包管理助手的信号，请检查系统总线后重试"));
+        return;
+    }
+
     if (m_state != State::Idle) {
         emit failed(QStringLiteral("已有操作正在进行，请稍后再试"));
         return;
@@ -162,6 +207,8 @@ void HelperClient::call(const QString &method, const QVariantList &arguments)
     m_state = State::Pending;
     m_pendingSignals.clear();
     m_stallTimer.stop();
+    m_lostTimer.stop();
+    m_cancelWhenAccepted = false;
     const quint64 serial = ++m_requestSerial;
 
     QDBusMessage request = QDBusMessage::createMethodCall(QLatin1String(kService),
@@ -186,6 +233,7 @@ void HelperClient::call(const QString &method, const QVariantList &arguments)
             m_state = State::Idle;
             m_transaction.clear();
             m_pendingSignals.clear();
+            m_cancelWhenAccepted = false;
             qWarning() << "助手请求失败:" << reply.errorName() << reply.errorMessage();
             emit failed(friendlyError(reply.errorName(), reply.errorMessage()));
             return;
@@ -196,22 +244,33 @@ void HelperClient::call(const QString &method, const QVariantList &arguments)
             m_state = State::Idle;
             m_transaction.clear();
             m_pendingSignals.clear();
+            m_cancelWhenAccepted = false;
             emit failed(QStringLiteral("助手返回了空的事务标识"));
             return;
         }
 
         m_transaction = transaction;
         m_state = State::Active;
-        m_stallTimer.start();
+        restartActivityTimers();
         emit accepted(transaction);
         flushPendingSignals();
+
+        // Pending 阶段收到的取消请求在受理后立即执行；
+        // 若事务已在缓冲的 Finished 中结束，则不再发送 Cancel
+        if (m_cancelWhenAccepted) {
+            m_cancelWhenAccepted = false;
+            if (m_state == State::Active) {
+                cancel();
+            }
+        }
     });
 }
 
-void HelperClient::restartStallTimer()
+void HelperClient::restartActivityTimers()
 {
     if (m_state == State::Active && !m_transaction.isEmpty()) {
         m_stallTimer.start();
+        m_lostTimer.start();
     }
 }
 
@@ -239,7 +298,7 @@ void HelperClient::flushPendingSignals()
             handleFinished(signal.transaction, signal.exitCode, signal.text);
             continue;
         }
-        restartStallTimer();
+        restartActivityTimers();
         emit output(signal.transaction, signal.text);
     }
 }
@@ -255,7 +314,7 @@ void HelperClient::onRemoteOutput(const QString &transaction, const QString &tex
         return;
     }
 
-    restartStallTimer();
+    restartActivityTimers();
     emit output(transaction, text);
 }
 
@@ -278,5 +337,7 @@ void HelperClient::handleFinished(const QString &transaction, int exitCode, cons
     m_transaction.clear();
     m_state = State::Idle;
     m_stallTimer.stop();
+    m_lostTimer.stop();
+    m_cancelWhenAccepted = false;
     emit finished(transaction, exitCode, message);
 }

@@ -11,7 +11,6 @@
 #include <QMessageBox>
 #include <QTabWidget>
 #include <QCheckBox>
-#include <QGroupBox>
 #include <QPointer>
 #include "packagemanager.h"
 #include "operationprogressdialog.h"

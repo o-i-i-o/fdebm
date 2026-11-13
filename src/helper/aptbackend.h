@@ -4,8 +4,16 @@
 #include <QObject>
 #include <QProcess>
 #include <QStringList>
+#include <memory>
 
 class LocalPackageSet;
+
+// 工作线程的暂存结果，仅包含路径与错误，不触碰主线程状态
+struct StageResult
+{
+    QStringList staged;
+    QString error;
+};
 
 class AptBackend : public QObject
 {
@@ -21,7 +29,7 @@ public:
     QString lastError() const { return m_lastError; }
     void clearLastError() { m_lastError.clear(); }
 
-    QString installLocalPackages(const LocalPackageSet &packages);
+    QString installLocalPackages(const std::shared_ptr<LocalPackageSet> &packages);
     QString installPackages(const QStringList &names);
     QString removePackages(const QStringList &names, bool purge);
     QString updateCache();
@@ -35,8 +43,10 @@ signals:
 
 private:
     QString begin(const QString &program, const QStringList &arguments);
-    bool ensureStagingDir();
-    bool stageLocalPackages(const LocalPackageSet &packages, QStringList *staged);
+    bool startProcess(const QString &program, const QStringList &arguments);
+    bool ensureStagingDir(QString *error);
+    bool verifyLocalPackages(const LocalPackageSet &packages, QString *error);
+    void onStagingFinished(const QString &transaction, const StageResult &result);
     void clearStagingDirectory();
     void cleanupStagedFiles();
     void readStandardOutput();
@@ -54,6 +64,8 @@ private:
     bool m_dryRun = false;
     int m_dryRunDelayMs = 300;
     bool m_cancelRequested = false;
+    // 暂存拷贝正在工作线程进行，取消时先标记，由 onStagingFinished 收尾
+    bool m_preparing = false;
 };
 
 #endif // APTBACKEND_H

@@ -1,11 +1,11 @@
 #include "operationprogressdialog.h"
 #include <QMessageBox>
 #include <QScrollBar>
+#include <QTextCursor>
 
 OperationProgressDialog::OperationProgressDialog(QWidget *parent)
     : QDialog(parent)
     , isFinished(false)
-    , isSuccess(false)
 {
     setWindowTitle("操作进度");
     setMinimumSize(600, 400);
@@ -49,7 +49,11 @@ void OperationProgressDialog::setOperationName(const QString &name)
 
 void OperationProgressDialog::appendOutput(const QString &output)
 {
-    outputTextEdit->append(output);
+    // apt/dpkg 输出按纯文本插入，避免其中的 <...> 被当作富文本解析
+    QTextCursor cursor(outputTextEdit->document());
+    cursor.movePosition(QTextCursor::End);
+    cursor.insertText(output + QLatin1Char('\n'));
+
     // 自动滚动到底部
     QScrollBar *scrollBar = outputTextEdit->verticalScrollBar();
     scrollBar->setValue(scrollBar->maximum());
@@ -57,9 +61,9 @@ void OperationProgressDialog::appendOutput(const QString &output)
 
 void OperationProgressDialog::setFinished(bool success, const QString &message)
 {
+    Q_UNUSED(success)
+
     isFinished = true;
-    isSuccess = success;
-    resultMessage = message;
 
     appendOutput("\n" + message);
     closeButton->setText("关闭");

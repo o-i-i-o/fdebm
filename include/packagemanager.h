@@ -13,7 +13,7 @@ struct DebPackage {
     QString name;
     QString version;
     QString description;
-    bool installed;
+    bool installed = false;
     // 在线搜索结果中记录本机已安装的版本，未安装时为空
     QString installedVersion;
 };
@@ -39,8 +39,6 @@ public:
     ~PackageManager();
 
     void loadInstalledPackages();
-    bool installPackage(const QString &packagePath);
-    bool removePackage(const QString &packageName, bool purge = false);
     bool installMultiplePackages(const QStringList &packagePaths);
     bool removeMultiplePackages(const QStringList &packageNames, bool purge = false);
     bool autoRemove();
@@ -73,6 +71,8 @@ private:
     void parseAptSearchOutput(const QString &output);
     void updateInstalledStatus();
     bool checkSystemCommands();
+    // 统一收尾已安装包加载，并在加载期间收到过刷新请求时补一次
+    void finishLoadInstalled(bool success, const QString &message);
     
     QString m_lastError;
     // 助手的 finished/failed 回调不带操作类型，这里记录最近一次发起的助手请求
@@ -82,6 +82,8 @@ private:
     HelperClient *m_helper;
     QProcess *m_listProcess = nullptr;
     QProcess *m_searchProcess = nullptr;
+    // 加载进行中收到的刷新请求，结束后合并执行一次
+    bool m_reloadQueued = false;
     // 非空表示搜索被用户取消或超时终止，完成回调据此给出准确提示
     QString m_searchAbortMessage;
     QString m_pendingSuccessMessage;

@@ -24,6 +24,8 @@ public:
     void upgrade(bool distUpgrade);
     void autoRemove();
     void cancel();
+    // 有请求在途（等待受理或执行中）时返回 true
+    bool isBusy() const { return m_state != State::Idle; }
 
 signals:
     // 事务已被助手接受；此后 Output/Finished 才会携带该 ID
@@ -46,7 +48,7 @@ private:
     enum class State { Idle, Pending, Active };
 
     void call(const QString &method, const QVariantList &arguments);
-    void restartStallTimer();
+    void restartActivityTimers();
     void handleFinished(const QString &transaction, int exitCode, const QString &message);
     void bufferSignal(bool finished, const QString &transaction, int exitCode, const QString &text);
     void flushPendingSignals();
@@ -62,9 +64,15 @@ private:
     QString m_transaction;
     QVector<PendingSignal> m_pendingSignals;
     QTimer m_stallTimer;
+    // 受理后长时间完全没有信号时放弃跟踪，避免界面永久停留在忙碌状态
+    QTimer m_lostTimer;
     QDBusServiceWatcher *m_serviceWatcher = nullptr;
     // 用于让助手退出后已经失效的在途调用不再产生第二次失败回调
     quint64 m_requestSerial = 0;
+    // 订阅 Output/Finished 失败时直接拒绝请求，避免等待永远不会到达的信号
+    bool m_signalsConnected = true;
+    // Pending 阶段请求取消：拿到事务 ID 后立即发出 Cancel
+    bool m_cancelWhenAccepted = false;
 };
 
 #endif // HELPERCLIENT_H

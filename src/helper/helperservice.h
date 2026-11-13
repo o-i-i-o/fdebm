@@ -5,6 +5,7 @@
 #include <QDBusMessage>
 #include <QHash>
 #include <QObject>
+#include <QSet>
 #include <QStringList>
 #include <functional>
 
@@ -37,6 +38,8 @@ signals:
 private:
     void handleRequest(const QString &action, const QString &validationError,
                        const std::function<QString()> &startOperation);
+    void handleAuthorized(const QDBusMessage &call, const QString &sender, const QString &action,
+                          const std::function<QString()> &startOperation);
     void sendError(const QDBusMessage &call, const QString &name, const QString &message);
     void onBackendOutput(const QString &transaction, const QString &text);
     void onBackendFinished(const QString &transaction, int exitCode, const QString &message);
@@ -45,7 +48,8 @@ private:
     AptBackend *m_backend;
     PolkitAuthorizer m_authorizer;
     QHash<QString, QString> m_destinations;
-    bool m_authorizing = false;
+    // 正在等待 polkit 结果的调用方，仅用于阻止同一发送方重复发起授权
+    QSet<QString> m_pendingSenders;
 };
 
 #endif // HELPERSERVICE_H

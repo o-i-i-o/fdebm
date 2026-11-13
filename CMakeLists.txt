@@ -5,7 +5,7 @@ set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
 
-find_package(Qt5 COMPONENTS Widgets DBus REQUIRED)
+find_package(Qt5 COMPONENTS Widgets DBus Concurrent REQUIRED)
 
 # 交叉编译默认不构建测试：测试目标依赖目标架构的 Qt5::Test，产物也无法在宿主直接执行。
 # 安装了 qemu-user-static 时可显式加 -DBUILD_TESTING=ON（工具链会自动接管模拟器）。
@@ -70,7 +70,7 @@ set(HELPER_HEADERS
 add_executable(fdebm-helperd ${HELPER_SOURCES} ${HELPER_HEADERS})
 
 target_include_directories(fdebm-helperd PRIVATE src/helper src/common)
-target_link_libraries(fdebm-helperd Qt5::Core Qt5::DBus)
+target_link_libraries(fdebm-helperd Qt5::Core Qt5::DBus Qt5::Concurrent)
 target_compile_definitions(fdebm-helperd PRIVATE FDEBM_VERSION="${PROJECT_VERSION}")
 
 install(TARGETS fdebm-helperd RUNTIME DESTINATION lib/fdebm)

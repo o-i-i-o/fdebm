@@ -91,11 +91,13 @@ PackageManager::~PackageManager()
 void PackageManager::loadInstalledPackages()
 {
     if (m_listProcess) {
+        // 正在加载时再次刷新不丢弃请求，结束后再补一次
+        m_reloadQueued = true;
         return;
     }
     if (m_dpkgPath.isEmpty()) {
         m_lastError = QStringLiteral("dpkg命令不可用");
-        emit operationFinished(OperationType::LoadInstalled, false, m_lastError);
+        finishLoadInstalled(false, m_lastError);
         return;
     }
 
@@ -130,7 +132,7 @@ void PackageManager::loadInstalledPackages()
 
         if (timedOut) {
             m_lastError = QStringLiteral("加载包列表超时");
-            emit operationFinished(OperationType::LoadInstalled, false, m_lastError);
+            finishLoadInstalled(false, m_lastError);
             return;
         }
         if (exitCode != 0 || exitStatus != QProcess::NormalExit) {
@@ -138,7 +140,7 @@ void PackageManager::loadInstalledPackages()
             if (m_lastError.isEmpty()) {
                 m_lastError = QStringLiteral("加载包列表失败");
             }
-            emit operationFinished(OperationType::LoadInstalled, false, m_lastError);
+            finishLoadInstalled(false, m_lastError);
             return;
         }
 
@@ -153,7 +155,7 @@ void PackageManager::loadInstalledPackages()
         m_listProcess = nullptr;
         m_lastError = process->errorString();
         process->deleteLater();
-        emit operationFinished(OperationType::LoadInstalled, false, m_lastError);
+        finishLoadInstalled(false, m_lastError);
     });
 
     process->setProcessEnvironment(readOnlyEnvironment());
@@ -190,39 +192,34 @@ void PackageManager::parseInstalledPackages(const QString &output)
 
     emit operationProgress(OperationType::LoadInstalled,
                            QStringLiteral("共加载 %1 个已安装包").arg(currentPackages.size()));
-    emit operationFinished(OperationType::LoadInstalled, true,
-                           QStringLiteral("成功加载 %1 个已安装包").arg(currentPackages.size()));
+    finishLoadInstalled(true,
+                        QStringLiteral("成功加载 %1 个已安装包").arg(currentPackages.size()));
 }
 
-bool PackageManager::installPackage(const QString &packagePath)
+void PackageManager::finishLoadInstalled(bool success, const QString &message)
 {
-    return installMultiplePackages(QStringList{packagePath});
-}
+    emit operationFinished(OperationType::LoadInstalled, success, message);
 
-bool PackageManager::removePackage(const QString &packageName, bool purge)
-{
-    if (packageName.isEmpty()) {
-        m_lastError = "没有选择任何包";
-        emit operationFinished(OperationType::Remove, false, m_lastError);
-        return false;
+    if (!m_reloadQueued) {
+        return;
     }
-
-    emit operationStarted(OperationType::Remove, purge
-                          ? QStringLiteral("正在完全卸载包并删除配置: %1").arg(packageName)
-                          : QStringLiteral("正在卸载包: %1").arg(packageName));
-    m_pendingSuccessMessage = purge
-            ? QStringLiteral("包完全卸载并删除配置成功: %1").arg(packageName)
-            : QStringLiteral("包卸载成功: %1").arg(packageName);
-
-    m_helperOperation = OperationType::Remove;
-    m_helper->removePackages(QStringList{packageName}, purge);
-    return true;
+    m_reloadQueued = false;
+    // dpkg 不可用时重试只会立即再次失败
+    if (!m_dpkgPath.isEmpty()) {
+        loadInstalledPackages();
+    }
 }
 
 bool PackageManager::removeMultiplePackages(const QStringList &packageNames, bool purge)
 {
     if (packageNames.isEmpty()) {
         m_lastError = "没有选择任何包";
+        emit operationFinished(OperationType::Remove, false, m_lastError);
+        return false;
+    }
+
+    if (m_helper->isBusy()) {
+        m_lastError = QStringLiteral("已有操作正在进行，请稍候");
         emit operationFinished(OperationType::Remove, false, m_lastError);
         return false;
     }
@@ -247,6 +244,12 @@ bool PackageManager::installMultiplePackages(const QStringList &packagePaths)
         return false;
     }
 
+    if (m_helper->isBusy()) {
+        m_lastError = QStringLiteral("已有操作正在进行，请稍候");
+        emit operationFinished(OperationType::InstallLocal, false, m_lastError);
+        return false;
+    }
+
     emit operationStarted(OperationType::InstallLocal,
                           QStringLiteral("正在批量安装 %1 个包").arg(packagePaths.size()));
     m_pendingSuccessMessage = QStringLiteral("所有 %1 个包安装成功").arg(packagePaths.size());
@@ -258,6 +261,12 @@ bool PackageManager::installMultiplePackages(const QStringList &packagePaths)
 
 bool PackageManager::autoRemove()
 {
+    if (m_helper->isBusy()) {
+        m_lastError = QStringLiteral("已有操作正在进行，请稍候");
+        emit operationFinished(OperationType::AutoRemove, false, m_lastError);
+        return false;
+    }
+
     emit operationStarted(OperationType::AutoRemove, QStringLiteral("正在执行自动清理..."));
     m_pendingSuccessMessage = QStringLiteral("自动清理完成");
 
@@ -268,6 +277,12 @@ bool PackageManager::autoRemove()
 
 void PackageManager::cancelOperation()
 {
+    // 助手事务是主要操作，优先取消；搜索是本地只读进程，可稍后单独中止
+    if (m_helper->isBusy()) {
+        m_helper->cancel();
+        return;
+    }
+
     if (m_searchProcess) {
         if (m_searchAbortMessage.isEmpty()) {
             m_searchAbortMessage = QStringLiteral("搜索已取消");
@@ -275,6 +290,7 @@ void PackageManager::cancelOperation()
         m_searchProcess->kill();
         return;
     }
+
     m_helper->cancel();
 }
 
@@ -296,6 +312,12 @@ bool PackageManager::checkAptCache()
 
 bool PackageManager::updateAptCache()
 {
+    if (m_helper->isBusy()) {
+        // 后台更新会被静默放弃，调用方据返回值复位自己的状态
+        m_lastError = QStringLiteral("已有操作正在进行，请稍候");
+        return false;
+    }
+
     emit operationStarted(OperationType::UpdateCache, QStringLiteral("正在更新apt缓存..."));
     m_pendingSuccessMessage = QStringLiteral("apt缓存更新完成");
 
@@ -481,6 +503,12 @@ bool PackageManager::installOnlinePackages(const QStringList &packageNames)
         return false;
     }
 
+    if (m_helper->isBusy()) {
+        m_lastError = QStringLiteral("已有操作正在进行，请稍候");
+        emit operationFinished(OperationType::InstallOnline, false, m_lastError);
+        return false;
+    }
+
     emit operationStarted(OperationType::InstallOnline,
                           QStringLiteral("正在安装 %1 个包").arg(packageNames.size()));
     m_pendingSuccessMessage = QStringLiteral("所有 %1 个包安装成功").arg(packageNames.size());
@@ -492,6 +520,12 @@ bool PackageManager::installOnlinePackages(const QStringList &packageNames)
 
 bool PackageManager::upgradeSystem(bool distUpgrade)
 {
+    if (m_helper->isBusy()) {
+        m_lastError = QStringLiteral("已有操作正在进行，请稍候");
+        emit operationFinished(OperationType::Upgrade, false, m_lastError);
+        return false;
+    }
+
     emit operationStarted(OperationType::Upgrade, distUpgrade
                           ? QStringLiteral("正在执行全部更新（dist-upgrade）...")
                           : QStringLiteral("正在执行全部更新（upgrade）..."));

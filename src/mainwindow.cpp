@@ -287,7 +287,10 @@ void MainWindow::startBackgroundAptUpdate()
     // 等首屏渲染和已安装列表加载开始后再更新软件源
     QTimer::singleShot(1500, this, [this]() {
         m_backgroundUpdate = true;
-        packageManager->updateAptCache();
+        // 请求未被接受（已有操作在跑）时立即复位，避免之后误吞用户发起的更新
+        if (!packageManager->updateAptCache()) {
+            m_backgroundUpdate = false;
+        }
     });
 }
 
@@ -744,7 +747,9 @@ void MainWindow::installSelectedOnlinePackages()
 
 void MainWindow::updateAptCache()
 {
-    packageManager->updateAptCache();
+    if (!packageManager->updateAptCache()) {
+        showStatusMessage(QString("更新失败: %1").arg(packageManager->getLastError()));
+    }
 }
 
 void MainWindow::upgradeSystem()

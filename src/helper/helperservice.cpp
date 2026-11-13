@@ -7,6 +7,8 @@
 #include <QDBusMessage>
 #include <QDebug>
 #include <QFile>
+#include <QFutureWatcher>
+#include <QtConcurrent>
 #include <memory>
 
 namespace
@@ -14,6 +16,13 @@ namespace
 const char kErrorBusy[] = "org.fdebm.Helper1.Error.Busy";
 const char kErrorNotAuthorized[] = "org.fdebm.Helper1.Error.NotAuthorized";
 const char kErrorInvalidArgument[] = "org.fdebm.Helper1.Error.InvalidArgument";
+
+// 工作线程的校验结果；packages 持有授权前打开的 fd，跨线程传递只共享所有权
+struct LocalPackageRequestResult
+{
+    QString error;
+    std::shared_ptr<LocalPackageSet> packages;
+};
 
 // /proc/<pid>/stat 的第 22 个字段，用于消除 PID 复用导致的身份歧义
 bool readProcessStartTime(quint32 pid, quint64 *startTime)
@@ -57,27 +66,61 @@ HelperService::HelperService(AptBackend *backend, QObject *parent)
 
 QString HelperService::InstallLocalPackages(const QStringList &paths)
 {
-    QStringList canonicalPaths;
-    QString error = PackageArgs::validateLocalDebPaths(paths, &canonicalPaths);
-
-    // 授权前打开并持有描述符，授权结束后只从这些 fd 暂存，
-    // 期间路径被替换为其他普通文件也不会改变实际内容来源
-    auto packages = std::make_shared<LocalPackageSet>();
-    if (error.isEmpty()) {
-        packages->open(canonicalPaths, &error);
+    if (!calledFromDBus()) {
+        return QString();
     }
 
-    // 授权前仍持有已校验的 fd（防 TOCTOU），但差异原因会暴露 root 可见的
-    // 文件存在性/权限，因此只写日志，对外统一返回同一条错误
-    if (!error.isEmpty()) {
-        qWarning() << "拒绝本地安装请求:" << error;
-        error = QStringLiteral("本地安装包校验失败（详情见系统日志）");
+    const QDBusMessage call = message();
+    const QString sender = call.service();
+
+    if (m_backend->isBusy() || m_pendingSenders.contains(sender)) {
+        sendErrorReply(QLatin1String(kErrorBusy), QStringLiteral("已有操作正在进行"));
+        return QString();
     }
 
-    handleRequest(QStringLiteral("org.fdebm.helper.install"), error,
-                  [this, packages]() {
-        return m_backend->installLocalPackages(*packages);
+    // 校验与打开 fd 需要读磁盘，放到工作线程执行，避免未授权请求阻塞 D-Bus 主线程
+    setDelayedReply(true);
+
+    QFutureWatcher<LocalPackageRequestResult> *watcher =
+            new QFutureWatcher<LocalPackageRequestResult>(this);
+    connect(watcher, &QFutureWatcher<LocalPackageRequestResult>::finished, this,
+            [this, watcher, call, sender]() {
+        watcher->deleteLater();
+        const LocalPackageRequestResult result = watcher->result();
+
+        // 授权前仍持有已校验的 fd（防 TOCTOU），但差异原因会暴露 root 可见的
+        // 文件存在性/权限，因此只写日志，对外统一返回同一条错误
+        if (!result.error.isEmpty()) {
+            qWarning() << "拒绝本地安装请求:" << result.error;
+            sendError(call, QLatin1String(kErrorInvalidArgument),
+                      QStringLiteral("本地安装包校验失败（详情见系统日志）"));
+            return;
+        }
+
+        // C++11 不支持 init-capture，先取出再按值捕获
+        const std::shared_ptr<LocalPackageSet> packages = result.packages;
+        handleAuthorized(call, sender, QStringLiteral("org.fdebm.helper.install"),
+                         [this, packages]() {
+            return m_backend->installLocalPackages(packages);
+        });
     });
+    watcher->setFuture(QtConcurrent::run([paths]() {
+        LocalPackageRequestResult result;
+
+        QStringList canonicalPaths;
+        result.error = PackageArgs::validateLocalDebPaths(paths, &canonicalPaths);
+        if (!result.error.isEmpty()) {
+            return result;
+        }
+
+        // 授权前打开并持有描述符，授权结束后只从这些 fd 暂存，
+        // 期间路径被替换为其他普通文件也不会改变实际内容来源
+        std::shared_ptr<LocalPackageSet> packages = std::make_shared<LocalPackageSet>();
+        packages->open(canonicalPaths, &result.error);
+        result.packages = packages;
+        return result;
+    }));
+
     return QString();
 }
 
@@ -169,32 +212,54 @@ void HelperService::handleRequest(const QString &action, const QString &validati
         return;
     }
 
-    if (m_backend->isBusy() || m_authorizing) {
-        sendErrorReply(QLatin1String(kErrorBusy), QStringLiteral("已有操作正在进行"));
+    const QDBusMessage call = message();
+    setDelayedReply(true);
+    handleAuthorized(call, call.service(), action, startOperation);
+}
+
+void HelperService::handleAuthorized(const QDBusMessage &call, const QString &sender,
+                                     const QString &action,
+                                     const std::function<QString()> &startOperation)
+{
+    if (sender.isEmpty()) {
+        sendError(call, QLatin1String(kErrorNotAuthorized), QStringLiteral("无法确定调用方身份"));
         return;
     }
 
-    const QDBusMessage call = message();
-    const QString sender = call.service();
+    // 同一调用方只保留一个待授权请求，避免重复弹窗；不同用户可并行授权，
+    // 任何一个 polkit 回调丢失都不会永久阻塞其他调用方
+    if (m_pendingSenders.contains(sender)) {
+        sendError(call, QLatin1String(kErrorBusy), QStringLiteral("已有请求正在等待授权"));
+        return;
+    }
+    if (m_backend->isBusy()) {
+        sendError(call, QLatin1String(kErrorBusy), QStringLiteral("已有操作正在进行"));
+        return;
+    }
 
     QDBusConnectionInterface *busInterface = QDBusConnection::systemBus().interface();
     const uint pid = busInterface ? busInterface->servicePid(sender) : 0u;
     quint64 startTime = 0;
     if (pid == 0 || !readProcessStartTime(pid, &startTime)) {
-        sendErrorReply(QLatin1String(kErrorNotAuthorized), QStringLiteral("无法确定调用方进程身份"));
+        sendError(call, QLatin1String(kErrorNotAuthorized), QStringLiteral("无法确定调用方进程身份"));
         return;
     }
 
-    setDelayedReply(true);
-    m_authorizing = true;
+    m_pendingSenders.insert(sender);
 
     m_authorizer.check(action, pid, startTime,
                        [this, call, sender, startOperation](bool authorized, const QString &error) {
-        m_authorizing = false;
+        m_pendingSenders.remove(sender);
 
         if (!authorized) {
             sendError(call, QLatin1String(kErrorNotAuthorized),
                       error.isEmpty() ? QStringLiteral("未获得授权") : error);
+            return;
+        }
+
+        // 等待授权期间可能已有另一个请求启动了事务
+        if (m_backend->isBusy()) {
+            sendError(call, QLatin1String(kErrorBusy), QStringLiteral("已有操作正在进行"));
             return;
         }
 

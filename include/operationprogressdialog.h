@@ -35,9 +35,7 @@ private:
     QTextEdit *outputTextEdit;
     QPushButton *closeButton;
     bool isFinished;
-    bool isSuccess;
     bool isCancelling = false;
-    QString resultMessage;
 };
 
 #endif // OPERATIONPROGRESSDIALOG_H
