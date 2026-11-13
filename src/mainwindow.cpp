@@ -204,10 +204,10 @@ void MainWindow::setupUI()
     onlineSearchLayout->addWidget(refreshAptCacheButton);
     
     // 将全部更新按钮和完全更新复选框移到顶部
-    upgradeSystemButton = new QPushButton("更新系统");
+    upgradeSystemButton = new QPushButton("全部更新");
     onlineSearchLayout->addWidget(upgradeSystemButton);
     
-    distUpgradeCheckbox = new QCheckBox("完全更新");
+    distUpgradeCheckbox = new QCheckBox("依赖冲突时移除已安装包");
     onlineSearchLayout->addWidget(distUpgradeCheckbox);
     
     onlineSearchLayout->addStretch();
@@ -232,7 +232,7 @@ void MainWindow::setupUI()
     onlineLayout->addWidget(onlinePackageTable);
     
     // 添加系统更新提示信息
-    QLabel *updateHintLabel = new QLabel("提示：「更新系统」升级所有已安装的包；勾选「完全更新」后使用 dist-upgrade，"
+    QLabel *updateHintLabel = new QLabel("提示：「全部更新」升级所有已安装的包；勾选「依赖冲突时移除已安装包」后使用 dist-upgrade，"
                                          "会安装新的依赖并移除过时的包，可能会改变系统版本。");
     updateHintLabel->setWordWrap(true);
     updateHintLabel->setStyleSheet("font-size: 10px; color: #666;");
@@ -751,8 +751,8 @@ void MainWindow::upgradeSystem()
 {
     bool distUpgrade = distUpgradeCheckbox->isChecked();
     QString confirmMsg = distUpgrade
-            ? "确定要执行完全更新（dist-upgrade）吗？这将安装新的依赖并移除过时的包，可能会改变系统版本。"
-            : "确定要更新系统（upgrade）吗？将升级所有已安装的包。";
+            ? "确定要执行全部更新（dist-upgrade）吗？依赖冲突时将移除已安装的包，可能会改变系统版本。"
+            : "确定要执行全部更新（upgrade）吗？将升级所有已安装的包。";
     
     int result = QMessageBox::question(this, "确认更新", 
                                      confirmMsg,

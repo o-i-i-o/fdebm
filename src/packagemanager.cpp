@@ -493,10 +493,10 @@ bool PackageManager::installOnlinePackages(const QStringList &packageNames)
 bool PackageManager::upgradeSystem(bool distUpgrade)
 {
     emit operationStarted(OperationType::Upgrade, distUpgrade
-                          ? QStringLiteral("正在执行完全更新（dist-upgrade）...")
-                          : QStringLiteral("正在更新系统（upgrade）..."));
-    m_pendingSuccessMessage = distUpgrade ? QStringLiteral("完全更新完成")
-                                          : QStringLiteral("系统更新完成");
+                          ? QStringLiteral("正在执行全部更新（dist-upgrade）...")
+                          : QStringLiteral("正在执行全部更新（upgrade）..."));
+    m_pendingSuccessMessage = distUpgrade ? QStringLiteral("全部更新完成（依赖冲突时移除已安装包）")
+                                          : QStringLiteral("全部更新完成");
 
     m_helperOperation = OperationType::Upgrade;
     m_helper->upgrade(distUpgrade);
