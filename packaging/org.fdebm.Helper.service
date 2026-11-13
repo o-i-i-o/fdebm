@@ -8,6 +8,9 @@ Type=dbus
 BusName=org.fdebm.Helper
 ExecStart=/usr/lib/fdebm/fdebm-helperd
 User=root
+# 指定 User= 后 systemd 会回收 CAP_SETUID；apt 需要它把 http 等方法降权到 _apt，
+# 否则 apt update 会报 "seteuid 42 failed (Operation not permitted)"。
+AmbientCapabilities=CAP_SETUID
 NoNewPrivileges=yes
 PrivateTmp=yes
 ProtectKernelTunables=yes

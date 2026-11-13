@@ -215,8 +215,8 @@ void MainWindow::searchLocalPackages()
     
     QList<DebPackage> filteredPackages;
     for (const DebPackage &pkg : allPackages) {
-        if (pkg.name.contains(searchText, Qt::CaseInsensitive) || 
-            pkg.description.contains(searchText, Qt::CaseInsensitive)) {
+        // 界面承诺的是按包名搜索，匹配描述会把大量无关包带进结果
+        if (pkg.name.contains(searchText, Qt::CaseInsensitive)) {
             filteredPackages.append(pkg);
         }
     }
