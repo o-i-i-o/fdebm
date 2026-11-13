@@ -28,7 +28,7 @@ xml = """
     <method name="CheckAuthorization">
       <arg type="(sa{sv})" name="subject" direction="in"/>
       <arg type="s" name="action_id" direction="in"/>
-      <arg type="a{sv}" name="details" direction="in"/>
+      <arg type="a{ss}" name="details" direction="in"/>
       <arg type="u" name="flags" direction="in"/>
       <arg type="s" name="cancellation_id" direction="in"/>
       <arg type="(bba{ss})" name="result" direction="out"/>

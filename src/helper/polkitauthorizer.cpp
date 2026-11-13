@@ -6,6 +6,7 @@
 #include <QDBusPendingCall>
 #include <QDBusPendingCallWatcher>
 #include <QDebug>
+#include <QMap>
 #include <QVariantMap>
 
 namespace Polkit
@@ -13,6 +14,13 @@ namespace Polkit
 struct Subject {
     QString kind;
     QVariantMap details;
+};
+
+// polkit 的 details 参数类型是 a{ss}。QVariantMap 会被 Qt 序列化为 a{sv}，
+// 与接口签名不一致，polkitd 会以 InvalidArgs 拒绝整个调用。
+// 这里显式按 a{ss} 编解码，避免落到默认的 a{sv}。
+struct StringMap {
+    QMap<QString, QString> values;
 };
 
 QDBusArgument &operator<<(QDBusArgument &argument, const Subject &subject)
@@ -30,13 +38,43 @@ const QDBusArgument &operator>>(const QDBusArgument &argument, Subject &subject)
     argument.endStructure();
     return argument;
 }
+
+QDBusArgument &operator<<(QDBusArgument &argument, const StringMap &map)
+{
+    argument.beginMap(QVariant::String, QVariant::String);
+    for (auto it = map.values.constBegin(); it != map.values.constEnd(); ++it) {
+        argument.beginMapEntry();
+        argument << it.key() << it.value();
+        argument.endMapEntry();
+    }
+    argument.endMap();
+    return argument;
+}
+
+const QDBusArgument &operator>>(const QDBusArgument &argument, StringMap &map)
+{
+    map.values.clear();
+    argument.beginMap();
+    while (!argument.atEnd()) {
+        argument.beginMapEntry();
+        QString key;
+        QString value;
+        argument >> key >> value;
+        argument.endMapEntry();
+        map.values.insert(key, value);
+    }
+    argument.endMap();
+    return argument;
+}
 }
 Q_DECLARE_METATYPE(Polkit::Subject)
+Q_DECLARE_METATYPE(Polkit::StringMap)
 
 PolkitAuthorizer::PolkitAuthorizer(QObject *parent)
     : QObject(parent)
 {
     qDBusRegisterMetaType<Polkit::Subject>();
+    qDBusRegisterMetaType<Polkit::StringMap>();
 }
 
 void PolkitAuthorizer::check(const QString &actionId, quint32 pid, quint64 startTime,
@@ -54,7 +92,7 @@ void PolkitAuthorizer::check(const QString &actionId, quint32 pid, quint64 start
             QStringLiteral("CheckAuthorization"));
     call << QVariant::fromValue(subject)
          << actionId
-         << QVariantMap()
+         << QVariant::fromValue(Polkit::StringMap())   // details: a{ss}
          << QVariant::fromValue<quint32>(1)   // AllowUserInteraction
          << QString();
 
@@ -77,7 +115,7 @@ void PolkitAuthorizer::check(const QString &actionId, quint32 pid, quint64 start
             // const 才能命中 beginStructure() 的只读重载
             const QDBusArgument argument = first.value<QDBusArgument>();
             bool challenge = false;
-            QVariantMap details;
+            Polkit::StringMap details;
             argument.beginStructure();
             argument >> authorized >> challenge >> details;
             argument.endStructure();

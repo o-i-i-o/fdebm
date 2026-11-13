@@ -21,6 +21,23 @@ QProcessEnvironment readOnlyEnvironment()
     environment.insert(QStringLiteral("LC_MESSAGES"), QStringLiteral("C"));
     return environment;
 }
+
+// apt search 把关键词当作正则，界面这里做的是包名字面搜索：
+// 转义元字符，避免 "g++"、"libc++" 等被当成量词/分组而返回无关结果。
+QString escapeSearchPattern(const QString &term)
+{
+    static const QString specialCharacters =
+            QStringLiteral("\\.^$*+?()[]{}|");
+    QString escaped;
+    escaped.reserve(term.size() * 2);
+    for (const QChar character : term) {
+        if (specialCharacters.contains(character)) {
+            escaped += QLatin1Char('\\');
+        }
+        escaped += character;
+    }
+    return escaped;
+}
 }
 
 PackageManager::PackageManager(QObject *parent)
@@ -365,7 +382,12 @@ bool PackageManager::searchOnlinePackages(const QString &searchTerm)
     });
 
     process->setProcessEnvironment(readOnlyEnvironment());
-    process->start(m_aptPath, QStringList{QStringLiteral("search"), searchTerm});
+    // --names-only 只按包名匹配（默认是全文搜索，描述命中会带来大量无关结果）；
+    // -- 之后的内容即使以 - 开头也按关键词处理，避免被当成 apt 选项。
+    process->start(m_aptPath, QStringList{QStringLiteral("search"),
+                                          QStringLiteral("--names-only"),
+                                          QStringLiteral("--"),
+                                          escapeSearchPattern(searchTerm)});
     return true;
 }
 
