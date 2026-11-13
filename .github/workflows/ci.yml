@@ -233,3 +233,56 @@ jobs:
           path: ${{ runner.temp }}/cross-arm64/fdebm_*_arm64.deb
           if-no-files-found: error
           retention-days: 14
+
+  release:
+    name: Publish GitHub Release
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    # 仅 tag 触发发布；PR 或分支推送只跑 CI
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [ package, cross-build-arm64 ]
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download deb artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: fdebm-deb*
+          path: dist
+          merge-multiple: true
+
+      - name: Verify tag matches project version
+        run: |
+          version=$(sed -n 's/^project(fdebm VERSION \([0-9][0-9.]*\).*/\1/p' CMakeLists.txt)
+          if [ -z "$version" ]; then
+            echo "无法从 CMakeLists.txt 读取项目版本" >&2
+            exit 1
+          fi
+          if [ "$GITHUB_REF_NAME" != "v$version" ]; then
+            echo "标签 $GITHUB_REF_NAME 与 CMakeLists.txt 版本 v$version 不一致" >&2
+            exit 1
+          fi
+
+      - name: Generate checksums
+        run: |
+          cd dist
+          ls -l ./*.deb
+          sha256sum ./*.deb > SHA256SUMS
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            # 重跑时覆盖同名产物，避免发布失败
+            gh release upload "$GITHUB_REF_NAME" dist/*.deb dist/SHA256SUMS --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" \
+              --verify-tag \
+              --title "fdebm $GITHUB_REF_NAME" \
+              --generate-notes \
+              dist/*.deb dist/SHA256SUMS
+          fi
