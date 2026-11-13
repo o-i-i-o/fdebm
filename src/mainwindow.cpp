@@ -204,10 +204,10 @@ void MainWindow::setupUI()
     onlineSearchLayout->addWidget(refreshAptCacheButton);
     
     // 将全部更新按钮和完全更新复选框移到顶部
-    upgradeSystemButton = new QPushButton("全部更新");
+    upgradeSystemButton = new QPushButton("更新系统");
     onlineSearchLayout->addWidget(upgradeSystemButton);
     
-    distUpgradeCheckbox = new QCheckBox("系统更新");
+    distUpgradeCheckbox = new QCheckBox("完全更新");
     onlineSearchLayout->addWidget(distUpgradeCheckbox);
     
     onlineSearchLayout->addStretch();
@@ -232,7 +232,8 @@ void MainWindow::setupUI()
     onlineLayout->addWidget(onlinePackageTable);
     
     // 添加系统更新提示信息
-    QLabel *updateHintLabel = new QLabel("提示：完全更新会安装新的依赖并移除过时的包，可能会改变系统版本。");
+    QLabel *updateHintLabel = new QLabel("提示：「更新系统」升级所有已安装的包；勾选「完全更新」后使用 dist-upgrade，"
+                                         "会安装新的依赖并移除过时的包，可能会改变系统版本。");
     updateHintLabel->setWordWrap(true);
     updateHintLabel->setStyleSheet("font-size: 10px; color: #666;");
     onlineLayout->addWidget(updateHintLabel);
@@ -538,8 +539,8 @@ void MainWindow::onOperationFinished(PackageManager::OperationType type, bool su
             onlineVersionItem->setTextAlignment(Qt::AlignCenter);
             onlinePackageTable->setItem(i, 2, onlineVersionItem);
 
-            // 第四列：已安装版本，已安装时显示具体版本号
-            QString installedText = "否";
+            // 第四列：已安装版本，未安装时留空
+            QString installedText;
             if (!pkg.installedVersion.isEmpty()) {
                 installedText = pkg.installedVersion;
             } else if (pkg.installed) {
@@ -749,7 +750,9 @@ void MainWindow::updateAptCache()
 void MainWindow::upgradeSystem()
 {
     bool distUpgrade = distUpgradeCheckbox->isChecked();
-    QString confirmMsg = distUpgrade ? "确定要执行系统完全更新吗？这将安装新的依赖并移除过时的包，可能会改变系统版本。" : "确定要执行系统更新吗？";
+    QString confirmMsg = distUpgrade
+            ? "确定要执行完全更新（dist-upgrade）吗？这将安装新的依赖并移除过时的包，可能会改变系统版本。"
+            : "确定要更新系统（upgrade）吗？将升级所有已安装的包。";
     
     int result = QMessageBox::question(this, "确认更新", 
                                      confirmMsg,

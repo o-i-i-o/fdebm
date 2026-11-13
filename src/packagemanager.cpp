@@ -493,9 +493,9 @@ bool PackageManager::installOnlinePackages(const QStringList &packageNames)
 bool PackageManager::upgradeSystem(bool distUpgrade)
 {
     emit operationStarted(OperationType::Upgrade, distUpgrade
-                          ? QStringLiteral("正在执行系统完全更新...")
-                          : QStringLiteral("正在执行系统更新..."));
-    m_pendingSuccessMessage = distUpgrade ? QStringLiteral("系统完全更新完成")
+                          ? QStringLiteral("正在执行完全更新（dist-upgrade）...")
+                          : QStringLiteral("正在更新系统（upgrade）..."));
+    m_pendingSuccessMessage = distUpgrade ? QStringLiteral("完全更新完成")
                                           : QStringLiteral("系统更新完成");
 
     m_helperOperation = OperationType::Upgrade;
