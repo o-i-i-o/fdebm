@@ -74,7 +74,7 @@ elf_arch() {
     machine=$(LC_ALL=C readelf -h "$1" 2>/dev/null | sed -n 's/^ *Machine: *//p') || true
     case "$machine" in
         *[Xx]86-64*|*x86_64*) echo amd64 ;;
-        *[Aa]arch64*) echo arm64 ;;
+        *[Aa][Aa]rch64*) echo arm64 ;;
         *80386*) echo i386 ;;
         ARM) if [ "$(dpkg --print-architecture)" = "armel" ]; then echo armel; else echo armhf; fi ;;
         *[Rr]ISC-[Vv]*|*riscv*) echo riscv64 ;;
