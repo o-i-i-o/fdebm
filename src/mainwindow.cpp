@@ -215,12 +215,17 @@ void MainWindow::setupUI()
     
     // 包列表表格
     onlinePackageTable = new QTableWidget();
-    onlinePackageTable->setColumnCount(4);
-    onlinePackageTable->setHorizontalHeaderLabels(QStringList() << "选择" << "包名" << "已安装" << "描述");
+    onlinePackageTable->setColumnCount(5);
+    onlinePackageTable->setHorizontalHeaderLabels(QStringList()
+                                                  << "选择" << "包名" << "在线版本"
+                                                  << "已安装版本" << "描述");
     onlinePackageTable->setSelectionBehavior(QAbstractItemView::SelectRows);
     onlinePackageTable->setSelectionMode(QAbstractItemView::ExtendedSelection);
     onlinePackageTable->setContextMenuPolicy(Qt::CustomContextMenu);
     onlinePackageTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Interactive);
+    // 两个版本列按文本长度自适应，避免长版本号被截断
+    onlinePackageTable->horizontalHeader()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
+    onlinePackageTable->horizontalHeader()->setSectionResizeMode(3, QHeaderView::ResizeToContents);
     onlinePackageTable->verticalHeader()->setDefaultAlignment(Qt::AlignCenter);
     onlinePackageTable->setItemDelegateForColumn(0, new CenteredCheckBoxDelegate(onlinePackageTable));
     onlinePackageTable->setSortingEnabled(true);
@@ -527,21 +532,33 @@ void MainWindow::onOperationFinished(PackageManager::OperationType type, bool su
             nameItem->setFlags(nameItem->flags() & ~Qt::ItemIsEditable);
             onlinePackageTable->setItem(i, 1, nameItem);
 
-            // 第三列：已安装状态
-            QTableWidgetItem *installedItem = new QTableWidgetItem(pkg.installed ? "是" : "否");
+            // 第三列：在线版本
+            QTableWidgetItem *onlineVersionItem = new QTableWidgetItem(pkg.version);
+            onlineVersionItem->setFlags(onlineVersionItem->flags() & ~Qt::ItemIsEditable);
+            onlineVersionItem->setTextAlignment(Qt::AlignCenter);
+            onlinePackageTable->setItem(i, 2, onlineVersionItem);
+
+            // 第四列：已安装版本，已安装时显示具体版本号
+            QString installedText = "否";
+            if (!pkg.installedVersion.isEmpty()) {
+                installedText = pkg.installedVersion;
+            } else if (pkg.installed) {
+                installedText = "是";
+            }
+            QTableWidgetItem *installedItem = new QTableWidgetItem(installedText);
             installedItem->setFlags(installedItem->flags() & ~Qt::ItemIsEditable);
             installedItem->setTextAlignment(Qt::AlignCenter);
-            onlinePackageTable->setItem(i, 2, installedItem);
+            onlinePackageTable->setItem(i, 3, installedItem);
 
-            // 第四列：描述
+            // 第五列：描述
             QTableWidgetItem *descItem = new QTableWidgetItem(pkg.description);
             descItem->setFlags(descItem->flags() & ~Qt::ItemIsEditable);
-            onlinePackageTable->setItem(i, 3, descItem);
+            onlinePackageTable->setItem(i, 4, descItem);
         }
 
         // 调整列宽
         onlinePackageTable->resizeColumnsToContents();
-        onlinePackageTable->horizontalHeader()->setSectionResizeMode(3, QHeaderView::Stretch);
+        onlinePackageTable->horizontalHeader()->setSectionResizeMode(4, QHeaderView::Stretch);
 
         onlinePackageTable->setSortingEnabled(sorting);
 

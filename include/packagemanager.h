@@ -14,6 +14,8 @@ struct DebPackage {
     QString version;
     QString description;
     bool installed;
+    // 在线搜索结果中记录本机已安装的版本，未安装时为空
+    QString installedVersion;
 };
 
 class PackageManager : public QObject

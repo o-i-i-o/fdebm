@@ -3,9 +3,9 @@
 #include "programpaths.h"
 #include <QDateTime>
 #include <QFileInfo>
+#include <QHash>
 #include <QProcess>
 #include <QProcessEnvironment>
-#include <QSet>
 #include <QTimer>
 
 namespace
@@ -453,22 +453,23 @@ void PackageManager::updateInstalledStatus()
 {
     // dpkg 对多架构包给出 "name:arch"，而 apt search 通常只给 "name"，
     // 因此同时记录完整名称和去掉架构后的名称用于匹配
-    QSet<QString> installedNames;
-    QSet<QString> installedBaseNames;
+    QHash<QString, QString> installedVersions;
+    QHash<QString, QString> installedBaseVersions;
     for (const DebPackage &pkg : currentPackages) {
-        installedNames.insert(pkg.name);
+        installedVersions.insert(pkg.name, pkg.version);
         const int colon = pkg.name.indexOf(QLatin1Char(':'));
         if (colon > 0) {
-            installedBaseNames.insert(pkg.name.left(colon));
+            installedBaseVersions.insert(pkg.name.left(colon), pkg.version);
         }
     }
 
     for (DebPackage &pkg : onlineSearchResults) {
-        bool installed = installedNames.contains(pkg.name);
-        if (!installed && !pkg.name.contains(QLatin1Char(':'))) {
-            installed = installedBaseNames.contains(pkg.name);
+        QString installedVersion = installedVersions.value(pkg.name);
+        if (installedVersion.isEmpty() && !pkg.name.contains(QLatin1Char(':'))) {
+            installedVersion = installedBaseVersions.value(pkg.name);
         }
-        pkg.installed = installed;
+        pkg.installedVersion = installedVersion;
+        pkg.installed = !installedVersion.isEmpty();
     }
 }
 
